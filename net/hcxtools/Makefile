@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=hcxtools
-PKG_VERSION:=5.3.0
+PKG_VERSION:=7.1.2
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/zerbea/hcxtools/tar.gz/$(PKG_VERSION)?
-PKG_HASH:=bc3465eb3b97c4db849af41ae3fa7c812d4683eb9e493f090ac82e922ba8a36d
+PKG_HASH:=c726b93df32efd3298874b324f820d93cb08a4dae03d9144b0d5062c003fd77f
 
 PKG_MAINTAINER:=Andreas Nilsen <adde88@gmail.com>
 PKG_LICENSE:=MIT
@@ -24,7 +24,7 @@ include $(INCLUDE_DIR)/package.mk
 define Package/hcxtools
   SECTION:=net
   CATEGORY:=Network
-  DEPENDS:=+libpthread +libpcap +zlib +libcurl +libopenssl
+  DEPENDS:=+libpthread +zlib +libcurl +libopenssl
   TITLE:=hcxtools
   URL:=https://github.com/ZerBea/hcxtools
   SUBMENU:=Wireless
@@ -38,32 +38,22 @@ endef
 define Build/Compile
 	$(MAKE) -C $(PKG_BUILD_DIR)/ \
 		$(TARGET_CONFIGURE_OPTS) \
-		CFLAGS="$(TARGET_CFLAGS)"
+		CFLAGS="$(TARGET_CFLAGS) -std=gnu99" \
+		LDFLAGS="$(TARGET_LDFLAGS)"
 endef
 
-define Package/hcxtools-custom/install
-	$(INSTALL_DIR) $(1)/sbin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxpcapngtool	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxhashtool	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxpsktool	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxwltool	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/wlancap2wpasec	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/whoismac	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxpmkidtool	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/wlanhcx2john	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxpcaptool	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxhashcattool	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxmactool	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxessidtool	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxhash2cap	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/wlanhc2hcx	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/wlanwkp2hcx	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/wlanhcxinfo	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/wlanhcx2ssid	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/wlanhcxcat	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/wlanpmk2hcx	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/wlanjohn2hcx	$(1)/sbin/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/wlancow2hcxpmk	$(1)/sbin/
+define Package/hcxtools/install
+	$(INSTALL_DIR) $(1)/usr/bin
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxeiutool		$(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxhash2cap		$(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxhashtool		$(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxpcapngtool		$(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxpmktool		$(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxpottool		$(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxpsktool		$(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hcxwltool		$(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/whoismac		$(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/wlancap2wpasec	$(1)/usr/bin/
 endef
 
 $(eval $(call BuildPackage,hcxtools))

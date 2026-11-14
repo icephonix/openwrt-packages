@@ -1,6 +1,17 @@
+From cf2cea877347df680d93ccd5b0b73988cb461034 Mon Sep 17 00:00:00 2001
+From: Jo-Philipp Wich <jow@openwrt.org>
+Date: Mon, 12 Mar 2012 16:13:31 +0000
+Subject: [PATCH] xtables-addons: integrate Lua PacketScript PacketScript adds
+ a -j LUA target to iptables which allows to manipulate and filter packets in
+ kernel space using Lua scripts uploaded through iptables. This enables rapid
+ netfilter prototyping and allows to easily implement complex filters. See
+ also http://cn.cs.unibas.ch/pub/doc/2010-msthGraf.pdf
+
+SVN-Revision: 30901
+
 --- /dev/null
 +++ b/extensions/LUA/byte_array.c
-@@ -0,0 +1,145 @@
+@@ -0,0 +1,161 @@
 +/*
 + *	Copyright (C) 2010 University of Basel <http://cn.cs.unibas.ch/>
 + *	by Andre Graf <andre@dergraf.org>
@@ -59,7 +70,7 @@
 +
 +
 +
-+/* LUA_API: get one byte of the given byte array 
++/* LUA_API: get one byte of the given byte array
 + * access-pattern: array[<index>] */
 +static int32_t get_byte_array(lua_State *L)
 +{
@@ -104,17 +115,31 @@
 +}
 +
 +
-+/* LUA_API: converts a given byte array to a string. 
++/* LUA_API: converts a given byte array to a string.
 + * access-pattern: implicit through functions calling the
 + * __to_string() metamethod , e.g. print32_t */
 +static int32_t byte_array_to_string(lua_State *L)
 +{
 +	lua_packet_segment * array = checkbytearray(L, 1);
-+	uint8_t buf[(array->length * 3) + 255];
 +	uint8_t hexval[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
-+	char res[255 + (array->length * 3)]; /* make sure the buffer is big enough*/
++	uint8_t * buf;
++	char * res;
 +	int32_t i, n;
 +	uint8_t *ptr = array->start + array->offset;
++
++	buf = kcalloc((array->length * 3) + 255, sizeof(*buf), GFP_KERNEL);
++
++	if (!buf) {
++		return luaL_error(L, "byte_array_to_string, failed alloc buf buffer");
++	}
++
++	/* make sure the buffer is big enough*/
++	res = kcalloc((array->length * 3) + 255, sizeof(*res), GFP_KERNEL);
++
++	if (!res) {
++		kfree(buf);
++		return luaL_error(L, "byte_array_to_string, failed alloc res buffer");
++	}
 +
 +	for (i = 0; i < array->length; i++) {
 +		buf[i * 3] = hexval[(ptr[i] >> 4) & 0xF];
@@ -126,6 +151,8 @@
 +	n = sprintf(res, "byte_array: length: %d  value: %s", array->length, buf);
 +
 +	lua_pushlstring(L, res, n);
++	kfree(res);
++	kfree(buf);
 +
 +	return 1;
 +}
@@ -172,12 +199,12 @@
 +#endif
 +#include "controller.h"
 +
-+/* the array 'supported_protocols' holds all pointers to the 
-+ * static and dynamic protocol buffers. It is filled by the 
++/* the array 'supported_protocols' holds all pointers to the
++ * static and dynamic protocol buffers. It is filled by the
 + * call to register_protbuf */
 +static struct protocol_buf * supported_protocols[MAX_NR_OF_PROTOCOLS];
 +
-+/* C_API: the function 'get_protocol_buf' returns the pointer 
++/* C_API: the function 'get_protocol_buf' returns the pointer
 + * to the protocol buffer of a given protocol id. */
 +struct protocol_buf * get_protocol_buf(uint32_t  protocol_id)
 +{
@@ -185,8 +212,8 @@
 +}
 +
 +
-+/* LUA_INT: the function 'gc_packet_segment' is triggered by the 
-+ * garbage collector whenever a userdata annotated with one of 
++/* LUA_INT: the function 'gc_packet_segment' is triggered by the
++ * garbage collector whenever a userdata annotated with one of
 + * the protocol buffer metatable should be collected. */
 +static int32_t gc_packet_segment(lua_State *L)
 +{
@@ -204,11 +231,11 @@
 +}
 +
 +
-+/* LUA_API: the function 'set_raw' is used to set the bytes of a segment 
-+ * in 'raw' mode. The function is per default available in each protocol 
-+ * buffer until it gets overridden by a specific setter function inside 
++/* LUA_API: the function 'set_raw' is used to set the bytes of a segment
++ * in 'raw' mode. The function is per default available in each protocol
++ * buffer until it gets overridden by a specific setter function inside
 + * a protocol buffer.
-+ * 
++ *
 + * Parameters:
 + * 1. lua_packet_segment (implicit)
 + * 2. int32_t byte_value
@@ -243,21 +270,21 @@
 +	return 0;
 +}
 +
-+/* LUA_API: the function 'get_raw' is used to get the bytes of a segment 
-+ * in 'raw' mode. The function is per default available in each protocol 
-+ * buffer until it gets overridden by a specific getter function inside 
++/* LUA_API: the function 'get_raw' is used to get the bytes of a segment
++ * in 'raw' mode. The function is per default available in each protocol
++ * buffer until it gets overridden by a specific getter function inside
 + * a protocol buffer.
 + *
 + * Parameters:
 + * 1. lua_packet_segment (implicit)
 + * 2. uint32_t  offset
-+ * 3. uint32_t  length 
++ * 3. uint32_t  length
 + *
 + * Upvalues:
 + * 1.  struct protocol_buf*
 + * 2.  int32_t field index, not used in this function
 + *
-+ * Return: 
++ * Return:
 + * the byte array representing the given array
 + */
 +static int32_t get_raw(lua_State *L)
@@ -269,8 +296,8 @@
 +
 +	return 1;
 +}
-+/* LUA_API: The function 'get_segment' is used to get a new segment in 'raw' mode. 
-+ * Typically this function is applied on another raw segment in order 
++/* LUA_API: The function 'get_segment' is used to get a new segment in 'raw' mode.
++ * Typically this function is applied on another raw segment in order
 + * to extract a part of the segment as new segment.
 + *
 + * Parameters:
@@ -323,7 +350,7 @@
 +}
 +
 +/* LUA_API: the function 'get_segment_size' is used to get the size of a segment.
-+ * 
++ *
 + * Parameters:
 + * 1.  lua_packet_segment, implicit through object oriented access seg:raw(..)
 + *
@@ -343,7 +370,7 @@
 +	return 1;
 +}
 +
-+/* LUA_API: the function 'get_segment_offset' is used to get the real offset 
++/* LUA_API: the function 'get_segment_offset' is used to get the real offset
 + * of a segment. This function returns the offset of the segment to the start
 + * of the buffer. This means the following
 + *     seg1 = packet:raw(2,10)
@@ -352,7 +379,7 @@
 + *
 + * will give an offset of 5, since the seg1 starts at offset 2, and seg2 starts
 + * at offset (seg1:get_offset() + 3).
-+ * 
++ *
 + * Parameters:
 + * 1.  lua_packet_segment, implicit through object oriented access seg:raw(..)
 + *
@@ -409,7 +436,7 @@
 +};
 +
 +/* C_API: the function 'get_metatable_from_protocol_type' is a helper
-+ * used in controller.c as well as it may find usage in the static 
++ * used in controller.c as well as it may find usage in the static
 + * protocol buffers and byte array implementation. */
 +void get_metatable_from_protocol_type(lua_State *L, int32_t type)
 +{
@@ -422,7 +449,7 @@
 +	return;
 +}
 +
-+/* C_INT: the function 'payload_contains_protocol' is used internally. 
++/* C_INT: the function 'payload_contains_protocol' is used internally.
 + * Depending if static or dynamic protocol buffer it calls the right
 + * validation function. */
 +static int32_t payload_contains_protocol(lua_State *L, struct protocol_buf *prot_buf, lua_packet_segment *seg, uint32_t  prot_type)
@@ -433,10 +460,10 @@
 +		return prot_buf->has_protocol(L, prot_buf, seg, prot_type);
 +}
 +
-+/* C_INT: the function 'protocol_get_field_changes' is used interally. 
++/* C_INT: the function 'protocol_get_field_changes' is used interally.
 + * It requests the field_changes struct calling the protocol buffers
 + * 'get_field_changes' function. This funciton is called, whenever
-+ * the payload field with a given protocol type is requested inside 
++ * the payload field with a given protocol type is requested inside
 + * the function 'get_protocol_field' */
 +static struct field_changes * protocol_get_field_changes(lua_State *L, struct protocol_buf *prot_buf, lua_packet_segment * seg)
 +{
@@ -454,7 +481,7 @@
 +	return changes;
 +}
 +
-+/* C_INT: the function 'get_field_offset_in_bytes' wrapps the logic of 
++/* C_INT: the function 'get_field_offset_in_bytes' wrapps the logic of
 + * calculating the new length with considering the optional field_changes. */
 +static int32_t get_field_offset_in_bytes(struct protocol_field * field, lua_packet_segment * seg, int32_t field_index)
 +{
@@ -472,7 +499,7 @@
 +	return seg->offset + nr_of_bytes;
 +}
 +
-+/* C_INT: the function 'get_field_length_in_bytes' wrapps the logic of 
++/* C_INT: the function 'get_field_length_in_bytes' wrapps the logic of
 + * calculating the new offset with considering the optional field_changes. */
 +static int32_t get_field_length_in_bytes(struct protocol_field * field, lua_packet_segment * seg, int32_t field_index)
 +{
@@ -494,7 +521,7 @@
 +	return nr_of_bytes;
 +}
 +
-+/* C_INT: the function 'initialize_field_getter_and_setter' initializes 
++/* C_INT: the function 'initialize_field_getter_and_setter' initializes
 + * the setter and getter function of the field, considering the optional
 + * field manipulator functions defined inside the protocol buffers. */
 +static void initialize_field_getter_and_setter(lua_State *L, struct protocol_buf *prot_buf, int32_t field_index)
@@ -672,7 +699,7 @@
 + *     global value inside the Lua state as well as inside the Lua table
 + *     'supported_protocols'. Assuming the name of a procotol buffer is
 + *     "packet_ip" the following statements are true:
-+ * 
++ *
 + *       supported_protocols[protocol_index] == "packet_ip"
 + *                                 packet_ip == protocol_index
 + *
@@ -731,8 +758,8 @@
 +	lua_getglobal(L, "_G");
 +	lua_newtable(L);
 +	lua_setfield(L, -2, SUPPORTED_PROTOCOL_TABLE);
-+	lua_pop(L, 1); /* pop _G */                   
-+	
++	lua_pop(L, 1); /* pop _G */
++
 +	luaopen_protbuf_raw(L);
 +	luaopen_protbuf_eth(L);
 +	luaopen_protbuf_ip(L);
@@ -940,12 +967,12 @@
 + *   This member is optional. It is used to return a pointer to an initialized
 + *   field_changes struct. The function is called, whenever the payload field
 + *   is requested with a given protocol type. Usually this function will
-+ *   initialize the field_changes struct depending on the content of the 
++ *   initialize the field_changes struct depending on the content of the
 + *   payload data. e.g.
 + *     tcp = ip:data(packet_tcp)
 + *   such a request will call the 'get_field_changes' function of the tcp
 + *   protocol buffer. This enables, that the tcp options field have the proper
-+ *   length as well as the tcp data start at the right offset. 
++ *   length as well as the tcp data start at the right offset.
 + */
 +struct protocol_buf {
 +	int is_dynamic;
@@ -974,7 +1001,7 @@
 +	struct lua_env {
 +		lua_State *L;
 +		/* perhaps more to come here (e.g. a state per CPU) */
-+	}; 
++	};
 +	#define LUA_ENV "lua_env"
 +	#define checkluaenv(L, i) \
 +	(struct lua_env *)luaL_checkudata(L, i, LUA_ENV)
@@ -1022,15 +1049,16 @@
 +#endif /* CONTROLLER_H_ */
 --- /dev/null
 +++ b/extensions/LUA/Kbuild
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,54 @@
 +# -*- Makefile -*-
 +
 +# Adding debug options
-+EXTRA_CFLAGS += -DDEBUG
++ccflags-y += -DDEBUG
 +
 +obj-m += xt_LUA.o
 +
-+EXTRA_CFLAGS += -I$(src)/prot_buf_new
++ccflags-y += -I$(src)/prot_buf_new
++
 +xt_LUA-y += xt_LUA_target.o \
 +
 +xt_LUA-y += nf_lua.o \
@@ -1047,8 +1075,12 @@
 +			prot_buf_dynamic.o \
 +
 +
-+# Adding Lua Support
-+EXTRA_CFLAGS += -I$(src)/lua -I$(src)/lua/include 
++# Enable <stddef.h> <stdarg.h>
++ccflags-y += -I$(src)/prot_buf_new
++# Adding Lua Support (embedded Lua and libc shims)
++ccflags-y += -I$(src)/lua -I$(src)/lua/include
++ccflags-y += -isystem $(shell $(CC) -print-file-name=include)
++
 +xt_LUA-y += lua/lapi.o \
 +			lua/lbaselib.o \
 +			lua/lcode.o \
@@ -1137,7 +1169,7 @@
 +	struct xt_lua_tginfo *info = (void *)target->data;
 +
 +	info->state_id = 0;
-+	strncpy(info->function, "process_packet\0", sizeof("process_packet\0"));
++	strcpy(info->function, "process_packet\0");
 +}
 +
 +static int
@@ -1345,16 +1377,13 @@
 +#include <linux/string.h>
 --- /dev/null
 +++ b/extensions/LUA/lua/lapi.c
-@@ -0,0 +1,1086 @@
+@@ -0,0 +1,1083 @@
 +/*
 +** $Id: lapi.c,v 2.55.1.5 2008/07/04 18:41:18 roberto Exp $
 +** Lua API
 +** See Copyright Notice in lua.h
 +*/
 +
-+#include <stdarg.h>
-+#include <math.h>
-+#include <assert.h>
 +#include <string.h>
 +
 +#define lapi_c
@@ -1558,7 +1587,7 @@
 +  api_checkvalidindex(L, o);
 +  if (idx == LUA_ENVIRONINDEX) {
 +    Closure *func = curr_func(L);
-+    api_check(L, ttistable(L->top - 1)); 
++    api_check(L, ttistable(L->top - 1));
 +    func->c.env = hvalue(L->top - 1);
 +    luaC_barrier(L, func, L->top - 1);
 +  }
@@ -2118,7 +2147,7 @@
 +
 +#define checkresults(L,na,nr) \
 +     api_check(L, (nr) == LUA_MULTRET || (L->ci->top - L->top >= (nr) - (na)))
-+	
++
 +
 +LUA_API void lua_call (lua_State *L, int nargs, int nresults) {
 +  StkId func;
@@ -2453,14 +2482,12 @@
 +#endif
 --- /dev/null
 +++ b/extensions/LUA/lua/lauxlib.c
-@@ -0,0 +1,674 @@
+@@ -0,0 +1,672 @@
 +/*
 +** $Id: lauxlib.c,v 1.159.1.3 2008/01/21 13:20:51 roberto Exp $
 +** Auxiliary functions for building Lua libraries
 +** See Copyright Notice in lua.h
 +*/
-+
-+#include <stdarg.h>
 +
 +#if !defined(__KERNEL__)
 +#include <ctype.h>
@@ -4887,7 +4914,7 @@
 +#endif
 --- /dev/null
 +++ b/extensions/LUA/lua/ldebug.c
-@@ -0,0 +1,637 @@
+@@ -0,0 +1,636 @@
 +/*
 +** $Id: ldebug.c,v 2.29.1.6 2008/05/08 16:56:26 roberto Exp $
 +** Debug Interface
@@ -4895,7 +4922,6 @@
 +*/
 +
 +
-+#include <stdarg.h>
 +#include <stddef.h>
 +#include <string.h>
 +
@@ -5073,7 +5099,7 @@
 +    int i;
 +    for (i=0; i<f->l.p->sizelineinfo; i++)
 +      setbvalue(luaH_setnum(L, t, lineinfo[i]), 1);
-+    sethvalue(L, L->top, t); 
++    sethvalue(L, L->top, t);
 +  }
 +  incr_top(L);
 +}
@@ -5301,7 +5327,7 @@
 +      case OP_FORLOOP:
 +      case OP_FORPREP:
 +        checkreg(pt, a+3);
-+        /* go through */
++        fallthrough;
 +      case OP_JMP: {
 +        int dest = pc+1+b;
 +        /* not full check and jump is forward and do not skip `lastpc'? */
@@ -6204,7 +6230,7 @@
 +
 +static void DumpString(const TString* s, DumpState* D)
 +{
-+ if (s==NULL || getstr(s)==NULL)
++ if (s==NULL)
 + {
 +  size_t size=0;
 +  DumpVar(size,D);
@@ -6835,7 +6861,7 @@
 +      traverseproto(g, p);
 +      return sizeof(Proto) + sizeof(Instruction) * p->sizecode +
 +                             sizeof(Proto *) * p->sizep +
-+                             sizeof(TValue) * p->sizek + 
++                             sizeof(TValue) * p->sizek +
 +                             sizeof(int) * p->sizelineinfo +
 +                             sizeof(LocVar) * p->sizelocvars +
 +                             sizeof(TString *) * p->sizeupvalues;
@@ -7222,7 +7248,7 @@
 +  GCObject *o = obj2gco(uv);
 +  o->gch.next = g->rootgc;  /* link upvalue into `rootgc' list */
 +  g->rootgc = o;
-+  if (isgray(o)) { 
++  if (isgray(o)) {
 +    if (g->gcstate == GCSpropagate) {
 +      gray2black(o);  /* closed upvalues need barrier */
 +      luaC_barrier(L, uv, uv->v);
@@ -7716,6 +7742,7 @@
 +        }
 +        else if (sep == -1) return '[';
 +        else luaX_lexerror(ls, "invalid long string delimiter", TK_STRING);
++        fallthrough;
 +      }
 +      case '=': {
 +        next(ls);
@@ -7809,10 +7836,9 @@
 +  lua_assert(ls->lookahead.token == TK_EOS);
 +  ls->lookahead.token = llex(ls, &ls->lookahead.seminfo);
 +}
-+
 --- /dev/null
 +++ b/extensions/LUA/lua/llex.h
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,83 @@
 +/*
 +** $Id: llex.h,v 1.58.1.1 2007/12/27 13:02:25 roberto Exp $
 +** Lexical Analyzer
@@ -7825,6 +7851,8 @@
 +#include "lobject.h"
 +#include "lzio.h"
 +
++/* prevent conflict with definition from asm/current.h */
++#undef current
 +
 +#define FIRST_RESERVED	257
 +
@@ -7896,7 +7924,7 @@
 +#endif
 --- /dev/null
 +++ b/extensions/LUA/lua/llimits.h
-@@ -0,0 +1,125 @@
+@@ -0,0 +1,124 @@
 +/*
 +** $Id: llimits.h,v 1.69.1.1 2007/12/27 13:02:25 roberto Exp $
 +** Limits, basic types, and some other `installation-dependent' definitions
@@ -7907,7 +7935,6 @@
 +#define llimits_h
 +
 +#include <stddef.h>
-+#include <limits.h>
 +
 +#include "lua.h"
 +
@@ -8003,7 +8030,7 @@
 +
 +
 +#ifndef lua_lock
-+#define lua_lock(L)     ((void) 0) 
++#define lua_lock(L)     ((void) 0)
 +#define lua_unlock(L)   ((void) 0)
 +#endif
 +
@@ -8014,7 +8041,7 @@
 +
 +/*
 +** macro to control inclusion of some hard tests on stack reallocation
-+*/ 
++*/
 +#ifndef HARDSTACKTESTS
 +#define condhardstacktests(x)	((void)0)
 +#else
@@ -8165,14 +8192,12 @@
 +
 --- /dev/null
 +++ b/extensions/LUA/lua/lobject.c
-@@ -0,0 +1,215 @@
+@@ -0,0 +1,213 @@
 +/*
 +** $Id: lobject.c,v 2.22.1.1 2007/12/27 13:02:25 roberto Exp $
 +** Some generic functions over Lua objects
 +** See Copyright Notice in lua.h
 +*/
-+
-+#include <stdarg.h>
 +
 +#include <ctype.h>
 +#include <stdio.h>
@@ -8723,7 +8748,7 @@
 +
 +typedef struct Table {
 +  CommonHeader;
-+  lu_byte flags;  /* 1<<p means tagmethod(p) is not present */ 
++  lu_byte flags;  /* 1<<p means tagmethod(p) is not present */
 +  lu_byte lsizenode;  /* log2 of size of `node' array */
 +  struct Table *metatable;
 +  TValue *array;  /* array part */
@@ -9061,8 +9086,8 @@
 +OP_LT,/*	A B C	if ((RK(B) <  RK(C)) ~= A) then pc++  		*/
 +OP_LE,/*	A B C	if ((RK(B) <= RK(C)) ~= A) then pc++  		*/
 +
-+OP_TEST,/*	A C	if not (R(A) <=> C) then pc++			*/ 
-+OP_TESTSET,/*	A B C	if (R(B) <=> C) then R(A) := R(B) else pc++	*/ 
++OP_TEST,/*	A C	if not (R(A) <=> C) then pc++			*/
++OP_TESTSET,/*	A B C	if (R(B) <=> C) then R(A) := R(B) else pc++	*/
 +
 +OP_CALL,/*	A B C	R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1)) */
 +OP_TAILCALL,/*	A B C	return R(A)(R(A+1), ... ,R(A+B-1))		*/
@@ -9072,8 +9097,8 @@
 +			if R(A) <?= R(A+1) then { pc+=sBx; R(A+3)=R(A) }*/
 +OP_FORPREP,/*	A sBx	R(A)-=R(A+2); pc+=sBx				*/
 +
-+OP_TFORLOOP,/*	A C	R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2)); 
-+                        if R(A+3) ~= nil then R(A+2)=R(A+3) else pc++	*/ 
++OP_TFORLOOP,/*	A C	R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2));
++                        if R(A+3) ~= nil then R(A+2)=R(A+3) else pc++	*/
 +OP_SETLIST,/*	A B C	R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B	*/
 +
 +OP_CLOSE,/*	A 	close all variables in the stack up to (>=) R(A)*/
@@ -9115,7 +9140,7 @@
 +** bits 4-5: B arg mode
 +** bit 6: instruction set register A
 +** bit 7: operator is a test
-+*/  
++*/
 +
 +enum OpArgMask {
 +  OpArgN,  /* argument is not used */
@@ -10609,7 +10634,7 @@
 +  lua_State l;
 +  global_State g;
 +} LG;
-+  
++
 +
 +
 +static void stack_init (lua_State *L1, lua_State *L) {
@@ -11992,7 +12017,7 @@
 +}
 --- /dev/null
 +++ b/extensions/LUA/lua/ltable.c
-@@ -0,0 +1,588 @@
+@@ -0,0 +1,587 @@
 +/*
 +** $Id: ltable.c,v 2.32.1.2 2007/12/28 15:32:23 roberto Exp $
 +** Lua tables (hash)
@@ -12013,7 +12038,6 @@
 +** Hence even when the load factor reaches 100%, performance remains good.
 +*/
 +
-+#include <math.h>
 +#include <string.h>
 +
 +#define ltable_c
@@ -12043,7 +12067,7 @@
 +
 +
 +#define hashpow2(t,n)      (gnode(t, lmod((n), sizenode(t))))
-+  
++
 +#define hashstr(t,str)  hashpow2(t, (str)->tsv.hash)
 +#define hashboolean(t,p)        hashpow2(t, p)
 +
@@ -12297,7 +12321,7 @@
 +  if (nasize > oldasize)  /* array part must grow? */
 +    setarrayvector(L, t, nasize);
 +  /* create new hash part with appropriate size */
-+  setnodevector(L, t, nhsize);  
++  setnodevector(L, t, nhsize);
 +  if (nasize < oldasize) {  /* array part must shrink? */
 +    t->sizearray = nasize;
 +    /* re-insert elements from vanishing slice */
@@ -12385,11 +12409,11 @@
 +
 +
 +/*
-+** inserts a new key into a hash table; first, check whether key's main 
-+** position is free. If not, check whether colliding node is in its main 
-+** position or not: if it is not, move colliding node to an empty place and 
-+** put new key in its main position; otherwise (colliding node is in its main 
-+** position), new key goes to an empty position. 
++** inserts a new key into a hash table; first, check whether key's main
++** position is free. If not, check whether colliding node is in its main
++** position or not: if it is not, move colliding node to an empty place and
++** put new key in its main position; otherwise (colliding node is in its main
++** position), new key goes to an empty position.
 +*/
 +static TValue *newkey (lua_State *L, Table *t, const TValue *key) {
 +  Node *mp = mainposition(t, key);
@@ -12471,7 +12495,7 @@
 +      lua_number2int(k, n);
 +      if (luai_numeq(cast_num(k), nvalue(key))) /* index is int? */
 +        return luaH_getnum(t, k);  /* use specialized version */
-+      /* else go through */
++      fallthrough;
 +    }
 +    default: {
 +      Node *n = mainposition(t, key);
@@ -12766,7 +12790,7 @@
 +  if (!lua_isstring(L, -1))
 +    luaL_error(L, "invalid value (%s) at index %d in table for "
 +                  LUA_QL("concat"), luaL_typename(L, -1), i);
-+    luaL_addvalue(b);
++  luaL_addvalue(b);
 +}
 +
 +
@@ -13051,7 +13075,7 @@
 +#endif
 --- /dev/null
 +++ b/extensions/LUA/lua/luaconf.h
-@@ -0,0 +1,797 @@
+@@ -0,0 +1,803 @@
 +/*
 +** $Id: luaconf.h,v 1.82.1.7 2008/02/11 16:25:08 roberto Exp $
 +** Configuration file for Lua
@@ -13067,8 +13091,12 @@
 +#if !defined(__KERNEL__)
 +#include <limits.h>
 +#else
++#include <linux/kernel.h>
++
++#undef UCHAR_MAX
++#undef BUFSIZ
++#undef NO_FPU
 +#define UCHAR_MAX	255
-+#define SHRT_MAX        32767
 +#define BUFSIZ 		8192
 +#define NO_FPU
 +#endif
@@ -13691,6 +13719,8 @@
 +*/
 +#if defined(__KERNEL__)
 +#undef LUA_USE_ULONGJMP
++#define setjmp __builtin_setjmp
++#define longjmp __builtin_longjmp
 +#endif
 +
 +#if defined(__cplusplus)
@@ -13851,7 +13881,7 @@
 +
 --- /dev/null
 +++ b/extensions/LUA/lua/lua.h
-@@ -0,0 +1,387 @@
+@@ -0,0 +1,386 @@
 +/*
 +** $Id: lua.h,v 1.218.1.5 2008/08/06 13:30:12 roberto Exp $
 +** Lua - An Extensible Extension Language
@@ -13863,7 +13893,6 @@
 +#ifndef lua_h
 +#define lua_h
 +
-+#include <stdarg.h>
 +#include <stddef.h>
 +
 +#include "luaconf.h"
@@ -14098,7 +14127,7 @@
 +
 +
 +
-+/* 
++/*
 +** ===============================================================
 +** some useful macros
 +** ===============================================================
@@ -14695,7 +14724,7 @@
 +      callTMres(L, val, tm, t, key);
 +      return;
 +    }
-+    t = tm;  /* else repeat with `tm' */ 
++    t = tm;  /* else repeat with `tm' */
 +  }
 +  luaG_runerror(L, "loop in gettable");
 +}
@@ -14722,7 +14751,7 @@
 +      callTM(L, tm, t, key, val);
 +      return;
 +    }
-+    t = tm;  /* else repeat with `tm' */ 
++    t = tm;  /* else repeat with `tm' */
 +  }
 +  luaG_runerror(L, "loop in settable");
 +}
@@ -15593,17 +15622,17 @@
 +CCDEPMODE = depmode=gcc3
 +CFLAGS = -g -O2
 +CPP = gcc -E
-+CPPFLAGS = 
++CPPFLAGS =
 +CYGPATH_W = echo
 +DEFS = -DHAVE_CONFIG_H
 +DEPDIR = .deps
-+DSYMUTIL = 
-+DUMPBIN = 
-+ECHO_C = 
++DSYMUTIL =
++DUMPBIN =
++ECHO_C =
 +ECHO_N = -n
-+ECHO_T = 
++ECHO_T =
 +EGREP = /bin/grep -E
-+EXEEXT = 
++EXEEXT =
 +FGREP = /bin/grep -F
 +GREP = /bin/grep
 +INSTALL = /usr/bin/install -c
@@ -15612,34 +15641,34 @@
 +INSTALL_SCRIPT = ${INSTALL}
 +INSTALL_STRIP_PROGRAM = $(install_sh) -c -s
 +LD = /usr/bin/ld
-+LDFLAGS = 
-+LIBOBJS = 
-+LIBS = 
++LDFLAGS =
++LIBOBJS =
++LIBS =
 +LIBTOOL = $(SHELL) $(top_builddir)/libtool
-+LIPO = 
++LIPO =
 +LN_S = ln -s
-+LTLIBOBJS = 
++LTLIBOBJS =
 +MAKEINFO = ${SHELL} /home/andre/Dropbox/xtables-addons/missing --run makeinfo
 +MKDIR_P = /bin/mkdir -p
 +NM = /usr/bin/nm -B
-+NMEDIT = 
++NMEDIT =
 +OBJDUMP = objdump
 +OBJEXT = o
-+OTOOL = 
-+OTOOL64 = 
++OTOOL =
++OTOOL64 =
 +PACKAGE = xtables-addons
-+PACKAGE_BUGREPORT = 
++PACKAGE_BUGREPORT =
 +PACKAGE_NAME = xtables-addons
 +PACKAGE_STRING = xtables-addons 1.21
 +PACKAGE_TARNAME = xtables-addons
-+PACKAGE_URL = 
++PACKAGE_URL =
 +PACKAGE_VERSION = 1.21
 +PATH_SEPARATOR = :
 +PKG_CONFIG = /usr/bin/pkg-config
 +RANLIB = ranlib
 +SED = /bin/sed
-+SET_MAKE = 
-+SHELL = /bin/bash
++SET_MAKE =
++SHELL = /bin/sh
 +STRIP = strip
 +VERSION = 1.21
 +abs_builddir = /home/andre/Dropbox/xtables-addons/extensions/LUA
@@ -15647,15 +15676,15 @@
 +abs_top_builddir = /home/andre/Dropbox/xtables-addons
 +abs_top_srcdir = /home/andre/Dropbox/xtables-addons
 +ac_ct_CC = gcc
-+ac_ct_DUMPBIN = 
++ac_ct_DUMPBIN =
 +am__include = include
 +am__leading_dot = .
-+am__quote = 
++am__quote =
 +am__tar = ${AMTAR} chof - "$$tardir"
 +am__untar = ${AMTAR} xf -
 +bindir = ${exec_prefix}/bin
 +build = i686-pc-linux-gnu
-+build_alias = 
++build_alias =
 +build_cpu = i686
 +build_os = linux-gnu
 +build_vendor = pc
@@ -15666,7 +15695,7 @@
 +dvidir = ${docdir}
 +exec_prefix = ${prefix}
 +host = i686-pc-linux-gnu
-+host_alias = 
++host_alias =
 +host_cpu = i686
 +host_os = linux-gnu
 +host_vendor = pc
@@ -15676,11 +15705,11 @@
 +install_sh = ${SHELL} /home/andre/Dropbox/xtables-addons/install-sh
 +kbuilddir = /lib/modules/2.6.33-020633-generic/build
 +kinclude_CFLAGS =  -I /lib/modules/2.6.33-020633-generic/build/include
-+ksourcedir = 
++ksourcedir =
 +libdir = ${exec_prefix}/lib
 +libexecdir = ${exec_prefix}/libexec
-+libxtables_CFLAGS =  
-+libxtables_LIBS = -L/lib -lxtables  
++libxtables_CFLAGS =
++libxtables_LIBS = -L/lib -lxtables
 +localedir = ${datarootdir}/locale
 +localstatedir = ${prefix}/var
 +lt_ECHO = echo
@@ -15696,7 +15725,7 @@
 +sharedstatedir = ${prefix}/com
 +srcdir = .
 +sysconfdir = ${prefix}/etc
-+target_alias = 
++target_alias =
 +top_build_prefix = ../../
 +top_builddir = ../..
 +top_srcdir = ../..
@@ -16410,22 +16439,22 @@
 +
 +
 +
-+struct protocol_buf * dyn_prot_buf_array[MAX_NR_OF_DYN_PROT_BUFS] = { NULL }; 
++struct protocol_buf * dyn_prot_buf_array[MAX_NR_OF_DYN_PROT_BUFS] = { NULL };
 +
 +
 +/* LUA_API: the function 'field_dynamic_setter' acts as a wrapper around
-+ * a given Lua field setter function of a dynamic protocol buffer. The 
++ * a given Lua field setter function of a dynamic protocol buffer. The
 + * string containing the lua function name was piggybacked in the 'set'
 + * member of the protocol_field. We call this function passing the actual
 + * segment as byte array and the set value.
-+ * 
++ *
 + * Paramters:
 + * 1.  lua_packet_segment (implicit)
-+ * 2.  some lua value 
++ * 2.  some lua value
 + *
 + * Upvalues:
-+ * 1.  pointer to the protocol buffer 
-+ * 2.  field index 
++ * 1.  pointer to the protocol buffer
++ * 2.  field index
 + *
 + * Returns:
 + * 1.  true or false if the 'set' was successful
@@ -16438,7 +16467,7 @@
 +	lua_packet_segment * seg = checkpacketseg(L, 1, prot_buf->name);
 +
 +	int32_t field_index = lua_tointeger(L, lua_upvalueindex(2));
-+    
++
 +	/* the function name is piggybacked as a string */
 +	lua_getglobal(L, (char *)prot_buf->protocol_fields[field_index].set);
 +	if (!lua_isfunction(L, -1)) {
@@ -16464,17 +16493,17 @@
 +}
 +
 +/* LUA_API: the function 'field_dynamic_getter' acts as a wrapper around
-+ * a given Lua field getter function of a dynamic protocol buffer. The 
++ * a given Lua field getter function of a dynamic protocol buffer. The
 + * string containing the lua function name was piggybacked in the 'get'
 + * member of the protocol_field. We call this function passing the actual
 + * segment as byte array.
-+ * 
++ *
 + * Paramters:
 + * 1.  lua_packet_segment (implicit)
 + *
 + * Upvalues:
-+ * 1.  pointer to the protocol buffer 
-+ * 2.  field index 
++ * 1.  pointer to the protocol buffer
++ * 2.  field index
 + *
 + * Returns:
 + * 1.  true or false if the 'get' was successful
@@ -16487,7 +16516,7 @@
 +	lua_packet_segment * seg = checkpacketseg(L, 1, prot_buf->name);
 +
 +	int32_t field_index = lua_tointeger(L, lua_upvalueindex(2));
-+    
++
 +	/* the function name is piggybacked as a string */
 +	lua_getglobal(L, (char *)prot_buf->protocol_fields[field_index].get);
 +	if (!lua_isfunction(L, -1)) {
@@ -16511,24 +16540,24 @@
 +	return 1;
 +}
 +
-+/* LUA_API: the function 'has_protocol_dynamic' acts as a wrapper around 
-+ * a given lua has_protocol function of a dynamic protocol buffer. The 
++/* LUA_API: the function 'has_protocol_dynamic' acts as a wrapper around
++ * a given lua has_protocol function of a dynamic protocol buffer. The
 + * string containing the lua function name was piggybacked in the 'has_protocol'
 + * member of the protocol_buffer. We call this function passing the actual
 + * segment.
-+ * 
++ *
 + * Paramters:
 + * 1.  lua_packet_segment
-+ * 2.  protocol type 
++ * 2.  protocol type
 + *
 + * Returns:
-+ * 1.  true or false if the payload field contains the given protocol 
++ * 1.  true or false if the payload field contains the given protocol
 + */
 +int32_t has_protocol_dynamic(lua_State *L, struct protocol_buf * prot_buf, lua_packet_segment * seg, int32_t type)
 +{
 +	lua_packet_segment *seg_new;
-+	int32_t res = 0;                                      
-+	
++	int32_t res = 0;
++
 +    /* the function name is piggybacked as a string */
 +	lua_getglobal(L, (char *)prot_buf->has_protocol);
 +	seg_new = (lua_packet_segment *)lua_newuserdata(L, sizeof(lua_packet_segment));
@@ -16550,18 +16579,18 @@
 +	return res;
 +}
 +
-+/* LUA_API: the function 'get_field_changes_dynamic' acts as a wrapper around 
-+ * a given lua get_field_changes function of a dynamic protocol buffer. The 
++/* LUA_API: the function 'get_field_changes_dynamic' acts as a wrapper around
++ * a given lua get_field_changes function of a dynamic protocol buffer. The
 + * string containing the lua function name was piggybacked in the 'get_field_changes'
 + * member of the protocol_buffer. We call this function passing the actual
-+ * segment. The lua function must return two lua table containing the offset 
-+ * and length changes (in bits). 
-+ * 
++ * segment. The lua function must return two lua table containing the offset
++ * and length changes (in bits).
++ *
 + * Paramters:
-+ * 1.  lua_packet_segment 
++ * 1.  lua_packet_segment
 + *
 + * Returns:
-+ * 1.  new allocated field_changes struct 
++ * 1.  new allocated field_changes struct
 + */
 +struct field_changes * get_field_changes_dynamic(lua_State *L, struct protocol_buf *prot_buf, lua_packet_segment * seg)
 +{
@@ -16628,8 +16657,8 @@
 +}
 +
 +/* C_API: 'free_dynamic_prot_buf' frees the allocated memory of a given
-+ * dynamic protocol buffer. this function is normally called inside a 
-+ * cleanup routine. Be aware, before running this function you must be 
++ * dynamic protocol buffer. this function is normally called inside a
++ * cleanup routine. Be aware, before running this function you must be
 + * sure that no references to the dynamic protocol buffers were available.
 + * It's recomended to close the Lua state before calling the function. */
 +void free_dynamic_prot_buf(struct protocol_buf * prot_buf)
@@ -16698,12 +16727,12 @@
 + *		get_field_changes = "eth_dyn_get_field_changes"
 + * 	}
 + * register_dynamic_protbuf(eth_prot_buf)
-+ * 
-+ * the table gets parsed and a new protocol_buf struct is allocated and 
++ *
++ * the table gets parsed and a new protocol_buf struct is allocated and
 + * initialized using 'register_protbuf', which is also used for the static
 + * protocol buffers. This enables an identical behavior like the static
 + * protocol buffers. The dynamic protocol buffers are not garbage collected,
-+ * use 'free_dynamic_protbuf' to free them after closing the Lua state. 
++ * use 'free_dynamic_protbuf' to free them after closing the Lua state.
 + */
 +static int32_t register_dynamic_protbuf(lua_State *L)
 +{
@@ -16846,7 +16875,7 @@
 +		}else
 +			goto err;
 +	}
-+	
++
 +	/* call the "common" register_protbuf */
 +	register_protbuf(L, prot_buf, get_free_protocol_index(L));      /* register prot_buf as it is done with the static ones */
 +
@@ -17105,7 +17134,7 @@
 +{
 +	struct protocol_buf * prot_buf = (struct protocol_buf *)lua_topointer(L, lua_upvalueindex(1));
 +	lua_packet_segment * seg = checkpacketseg(L, 1, prot_buf->name);
-+    
++
 +	/* Warning we cast from uchar to char */
 +	lua_pushlstring(L, (char *)seg->start + seg->offset, seg->length);
 +	return 1;
@@ -17211,7 +17240,7 @@
 +
 --- /dev/null
 +++ b/extensions/LUA/prot_buf_ip.c
-@@ -0,0 +1,209 @@
+@@ -0,0 +1,210 @@
 +/*
 + *	Copyright (C) 2010 University of Basel <http://cn.cs.unibas.ch/>
 + *	by Andre Graf <andre@dergraf.org>
@@ -17231,6 +17260,7 @@
 + */
 +
 +#if defined(__KERNEL__)
++	#include <linux/bitops.h>
 +	#include <net/checksum.h>
 +	#include <net/tcp.h>
 +#endif
@@ -17469,7 +17499,7 @@
 +}
 --- /dev/null
 +++ b/extensions/LUA/prot_buf_tcp.c
-@@ -0,0 +1,188 @@
+@@ -0,0 +1,189 @@
 +/*
 + *	Copyright (C) 2010 University of Basel <http://cn.cs.unibas.ch/>
 + *	by Andre Graf <andre@dergraf.org>
@@ -17489,6 +17519,7 @@
 + */
 +
 +#if defined(__KERNEL__)
++	#include <linux/bitops.h>
 +	#include <net/checksum.h>
 +	#include <net/tcp.h>
 +#endif
@@ -17750,7 +17781,7 @@
 +}
 --- /dev/null
 +++ b/extensions/LUA/prot_buf_udp.c
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,54 @@
 +/*
 + *	Copyright (C) 2010 University of Basel <http://cn.cs.unibas.ch/>
 + *	by Andre Graf <andre@dergraf.org>
@@ -17770,6 +17801,7 @@
 + */
 +
 +#if defined(__KERNEL__)
++	#include <linux/bitops.h>
 +	#include <net/checksum.h>
 +#endif
 +
@@ -17867,7 +17899,7 @@
 +#include <linux/kernel.h>
 +#include <linux/slab.h>
 +#include <linux/module.h>
-+#include <asm/uaccess.h>
++#include <linux/uaccess.h>
 +#include <net/ip.h>
 +#include <linux/netfilter/x_tables.h>
 +#include "xt_LUA.h"
@@ -17912,10 +17944,10 @@
 + * XT_CONTINUE inside the *register_lua_packet_lib* function.
 + */
 +
-+spinlock_t lock = SPIN_LOCK_UNLOCKED;
++DEFINE_SPINLOCK(lock);
 +
-+static uint32_t 
-+lua_tg(struct sk_buff *pskb, const struct xt_target_param *par)
++static uint32_t
++lua_tg(struct sk_buff *pskb, const struct xt_action_param *par)
 +{
 +	uint32_t  verdict;
 +	lua_packet_segment *p;
@@ -17927,7 +17959,7 @@
 +
 +	L = lua_envs[info->state_id]->L;
 +
-+	if (!skb_make_writable(pskb, pskb->len))
++	if (skb_ensure_writable(pskb, pskb->len))
 +		return NF_DROP;
 +
 +	/* call the function provided by --function parameter or the default 'process_packet' defined in Lua */
@@ -17936,11 +17968,11 @@
 +	/* push the lua_packet_segment as a parameter */
 +	p = (lua_packet_segment *)lua_newuserdata(L, sizeof(lua_packet_segment));
 +	if (pskb->mac_header)
-+		p->start = pskb->mac_header;
++		p->start = skb_mac_header(pskb);
 +	else if (pskb->network_header)
-+		p->start = pskb->network_header;
++		p->start = skb_network_header(pskb);
 +	else if (pskb->transport_header)
-+		p->start = pskb->transport_header;
++		p->start = skb_transport_header(pskb);
 +	p->offset = 0;
 +	p->length = (unsigned long)pskb->tail - (unsigned long)p->start;
 +	p->changes = NULL;
@@ -17976,7 +18008,7 @@
 +
 +	return verdict;
 +
-+} 
++}
 +/* Helper for checkentry */
 +static bool load_script_into_state(uint32_t  state_id, unsigned long script_size, char *script_buf)
 +{
@@ -17984,7 +18016,7 @@
 +	int32_t ret;
 +	struct lua_env * env = kmalloc(sizeof(struct lua_env), GFP_KERNEL);
 +
-+	if (!script_size > 0) {
++	if (!script_size) {
 +		pr_debug("LUA [%d]: script_size %lu < 0\n", state_id, script_size);
 +		return false;
 +	}
@@ -18056,16 +18088,16 @@
 + * some workqueue initialization. So far this is done each time this function
 + * is called, subject to change.
 + */
-+static bool
++static int
 +lua_tg_checkentry(const struct xt_tgchk_param *par)
 +{
 +	const struct xt_lua_tginfo *info = par->targinfo;
 +
 +	if (load_script_into_state(info->state_id, info->script_size, (char *)info->buf)) {
 +		lua_state_refs[info->state_id]++;
-+		return true;
++		return 0;
 +	}
-+	return false;
++	return -EINVAL;
 +}
 +
 +/*::*
@@ -18093,7 +18125,7 @@
 +	} else
 +		pr_debug("LUA [%d]: Rule removed, Lua state stays open, referenced %d time(s)\n",
 +			 info->state_id, lua_state_refs[info->state_id] - 1);
-+	
++
 +	lua_state_refs[info->state_id]--;
 +}
 +
@@ -18134,7 +18166,7 @@
 +
 --- a/extensions/Kbuild
 +++ b/extensions/Kbuild
-@@ -28,6 +28,7 @@ obj-${build_pknock}      += pknock/
+@@ -29,6 +29,7 @@ obj-${build_pknock}      += pknock/
  obj-${build_psd}         += xt_psd.o
  obj-${build_quota2}      += xt_quota2.o
  obj-${build_rtsp}        += rtsp/
@@ -18144,14 +18176,14 @@
  -include ${M}/Kbuild.*
 --- a/extensions/Mbuild
 +++ b/extensions/Mbuild
-@@ -23,3 +23,4 @@ obj-${build_pknock}      += pknock/
+@@ -24,3 +24,4 @@ obj-${build_pknock}      += pknock/
  obj-${build_psd}         += libxt_psd.so
  obj-${build_quota2}      += libxt_quota2.so
  obj-${build_gradm}       += libxt_gradm.so
 +obj-${build_LUA}         += LUA/
 --- a/mconfig
 +++ b/mconfig
-@@ -24,3 +24,4 @@ build_pknock=m
+@@ -27,3 +27,4 @@ build_pknock=m
  build_psd=m
  build_quota2=m
  build_rtsp=m

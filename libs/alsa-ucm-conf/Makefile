@@ -6,15 +6,15 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=alsa-ucm-conf
-PKG_VERSION:=1.2.4
+PKG_VERSION:=1.2.16.1
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
-PKG_SOURCE_URL:=ftp://ftp.alsa-project.org/pub/lib/ \
-		http://distfiles.gentoo.org/distfiles/
-PKG_HASH:=2c3b535c77dcb9aaf62a61f4f8324f1ab184162f105f7ec9ed1e37c742fcd340
+PKG_SOURCE_URL:=https://www.alsa-project.org/files/pub/lib/ \
+		https://distfiles.gentoo.org/distfiles/
+PKG_HASH:=cf3d1c07e089a83c4ece2c20f05dd6a8aab7fcd108768c38811386880575492b
 
-PKG_MAINTAINER:=
+PKG_MAINTAINER:=Alexandru Ardelean <ardeleanalex@gmail.com>
 PKG_LICENSE:=BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE
 
@@ -30,7 +30,7 @@ define Package/alsa-ucm-conf
 endef
 
 define Package/alsa-ucm-conf/description
- This is a set of configuration files needed for some ALS utilities like alsactl.
+ This is a set of configuration files needed for some ALSA utilities like alsactl.
 endef
 
 define Build/Configure

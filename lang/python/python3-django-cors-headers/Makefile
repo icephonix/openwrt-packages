@@ -1,15 +1,16 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=django-cors-headers
-PKG_VERSION:=3.5.0
-PKG_RELEASE:=1
+PKG_VERSION:=4.9.0
+PKG_RELEASE:=2
 
 PYPI_NAME:=django-cors-headers
-PKG_HASH:=db82b2840f667d47872ae3e4a4e0a0d72fbecb42779b8aa233fa8bb965f7836a
+PYPI_SOURCE_NAME:=django_cors_headers
+PKG_HASH:=fe5d7cb59fdc2c8c646ce84b727ac2bca8912a247e6e68e1fb507372178e59e8
 
+PKG_MAINTAINER:=Peter Stadler <peter.stadler@student.uibk.ac.at>
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=LICENSE
-PKG_MAINTAINER:=Peter Stadler <peter.stadler@student.uibk.ac.at>
 
 include ../pypi.mk
 include $(INCLUDE_DIR)/package.mk

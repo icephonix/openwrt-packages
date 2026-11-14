@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=gst1-plugins-good
-PKG_VERSION:=1.18.1
-PKG_RELEASE:=1
+PKG_VERSION:=1.28.7
+PKG_RELEASE:=3
 
 PKG_SOURCE:=gst-plugins-good-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=https://gstreamer.freedesktop.org/src/gst-plugins-good/
-PKG_HASH:=e210e91a5590ecb6accc9d06c949a58ca6897d8edb3b3d55828e424c624f626c
+PKG_HASH:=87256969c82cf3bc8574301f3e7044a90de0ac500a5a27d8ba38c4dde894dd8b
 PKG_BUILD_DIR:=$(BUILD_DIR)/gst-plugins-good-$(PKG_VERSION)
 
 PKG_MAINTAINER:=W. Michael Petullo <mike@flyn.org> \
@@ -22,11 +22,9 @@ PKG_LICENSE:=LGPL-2.1-or-later
 PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:gstreamer:good_plug-ins
 
-PKG_INSTALL:=1
-
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/nls.mk
-include ../../devel/meson/meson.mk
+include $(INCLUDE_DIR)/meson.mk
 
 PKG_CONFIG_DEPENDS:= \
 	CONFIG_PACKAGE_gst1-mod-lame \
@@ -89,11 +87,15 @@ define Package/gstreamer1-plugins-good/config
 
 endef
 
+TARGET_CFLAGS += -Wno-error=incompatible-pointer-types
+
 GST_COND_SELECT = -D$(1)=$(if $(CONFIG_PACKAGE_gst1-mod-$(1)),en,dis)abled
 
 GST_VERSION:=1.0
 
 MESON_ARGS += \
+	$(call GST_COND_SELECT,adaptivedemux2) \
+	-Dhls-crypto=nettle \
 	$(call GST_COND_SELECT,alpha) \
 	$(call GST_COND_SELECT,apetag) \
 	$(call GST_COND_SELECT,audiofx) \
@@ -170,6 +172,7 @@ MESON_ARGS += \
 	\
 	-Dximagesrc=disabled \
 	-Dv4l2=$(if $(CONFIG_PACKAGE_gst1-mod-video4linux2),en,dis)abled \
+	-Dv4l2-gudev=disabled \
 	-Dexamples=disabled \
 	-Dtests=disabled \
 	-Dnls=enabled \
@@ -219,6 +222,7 @@ define GstBuildPlugin
   $$(eval $$(call BuildPackage,gst1-mod-$(1)))
 endef
 
+$(eval $(call GstBuildPlugin,adaptivedemux2,adaptive streaming demuxer,net pbutils tag,,+libxml2 +libnettle +libsoup3))
 $(eval $(call GstBuildPlugin,alaw,alaw codec,audio,,))
 $(eval $(call GstBuildPlugin,alpha,alpha support,video,,))
 $(eval $(call GstBuildPlugin,apetag,apetag support,audio pbutils tag video,,))
@@ -261,7 +265,7 @@ $(eval $(call GstBuildPlugin,videofilter,videofilter support,video,,))
 $(eval $(call GstBuildPlugin,videomixer,videomixer support,video,,))
 $(eval $(call GstBuildPlugin,wavenc,Wav encoder,riff,,))
 $(eval $(call GstBuildPlugin,wavparse,Wav parser,audio riff tag,,))
-#$(eval $(call GstBuildPlugin,y4m,sty4menc support,video,,))
+$(eval $(call GstBuildPlugin,y4m,y4m encoder/decoder,video,,))
 
 #$(eval $(call GstBuildPlugin,1394,IEEE 1394 support,,,))
 #$(eval $(call GstBuildPlugin,aalib,aalib text console video sink,,,))
@@ -280,9 +284,9 @@ $(eval $(call GstBuildPlugin,ossaudio,OSS audio support,audio,,))
 $(eval $(call GstBuildPlugin,png,png support,video,,+libpng))
 #$(eval $(call GstBuildPlugin,pulse,pulse support,audio pbutils tag video,,+pulseaudio))
 $(eval $(call GstBuildPlugin,shout2,shout2 support,audio,,+libshout))
-$(eval $(call GstBuildPlugin,soup,soup input,audio tag,,+libsoup))
+$(eval $(call GstBuildPlugin,soup,soup input,audio tag,,+libsoup3))
 $(eval $(call GstBuildPlugin,speex,speex support,audio tag,,+libspeex))
-#$(eval $(call GstBuildPlugin,taglib,taglib support,tag,,))
+$(eval $(call GstBuildPlugin,taglib,taglib support,tag,,+taglib))
 $(eval $(call GstBuildPlugin,video4linux2,video4linux2 support,video allocators,,+libv4l))
 $(eval $(call GstBuildPlugin,vpx,vpx support,tag video,,+libvpx))
 #$(eval $(call GstBuildPlugin,wavpack,Wav packer,audio riff tag,,))

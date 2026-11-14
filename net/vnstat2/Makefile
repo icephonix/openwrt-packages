@@ -6,12 +6,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=vnstat2
-PKG_VERSION:=2.6
+PKG_VERSION:=2.14
 PKG_RELEASE:=1
 
 PKG_SOURCE:=vnstat-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://humdi.net/vnstat
-PKG_HASH:=89276e0a7281943edb554b874078278ad947dc312938a2451e03eb80679f7ff7
+PKG_HASH:=8ba2119b3c6f780775135f9c9fa7236867da67e2f93649f1313319b9cf48f87c
 
 PKG_LICENSE:=GPL-2.0-only
 PKG_LICENSE_FILES:=COPYING
@@ -30,12 +30,12 @@ define Package/vnstat2/Default
   CATEGORY:=Network
   URL:=https://humdi.net/vnstat/
   DEPENDS:=+libsqlite3
-  CONFLICTS:=vnstat
 endef
 
 define Package/vnstat2
 $(call Package/vnstat2/Default)
   TITLE:=Console-based network traffic monitor
+  PROVIDES:=vnstat
 endef
 
 define Package/vnstat2/description
@@ -49,6 +49,7 @@ define Package/vnstati2
 $(call Package/vnstat2/Default)
   DEPENDS+=vnstat2 +libgd
   TITLE:=PNG image output support for vnStat
+  PROVIDES:=vnstati
 endef
 
 define Package/vnstati2/description
@@ -65,6 +66,10 @@ define Package/vnstat2/conffiles
 endef
 
 CONFIGURE_ARGS += --disable-extra-paths
+
+# Prevent build failure for libgd without FreeType, and also avoid dependency
+# on it when libgd-full is available during build
+CONFIGURE_VARS += ac_cv_have_decl_gdImageStringFT="no"
 
 define Package/vnstat2/install
 	$(INSTALL_DIR) $(1)/usr/bin

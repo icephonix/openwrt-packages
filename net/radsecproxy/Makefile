@@ -8,15 +8,15 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=radsecproxy
-PKG_VERSION:=1.8.1
-PKG_RELEASE:=2
+PKG_VERSION:=1.11.4
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://github.com/radsecproxy/radsecproxy/releases/download/$(PKG_VERSION)/
-PKG_HASH:=c6f9380f049818e71c129ee9bdfa20c8e0e3a13ca1c806643e0d44c310914e63
+PKG_HASH:=65c269b745b77bbc5da8d4ac1318a91eca22ed879add46d5964bef370900d345
 
-PKG_MAINTAINER:=Toke Høiland-Jørgensen <toke@toke.dk>
-PKG_LICENSE:=BSD-3-CLAUSE
+PKG_MAINTAINER:=Alexandru Ardelean <ardeleanalex@gmail.com>
+PKG_LICENSE:=BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE
 PKG_CPE_ID:=cpe:/a:uninett:radsecproxy
 

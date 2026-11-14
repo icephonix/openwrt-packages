@@ -6,12 +6,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=socat
-PKG_VERSION:=1.7.3.4
-PKG_RELEASE:=2
+PKG_VERSION:=1.8.1.3
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
 PKG_SOURCE_URL:=http://www.dest-unreach.org/socat/download
-PKG_HASH:=972374ca86f65498e23e3259c2ee1b8f9dbeb04d12c2a78c0c9b5d1cb97dfdfc
+PKG_HASH:=25bc6476292b2e614220989c77b0b6fca87bb2525d9747b31a6639b1fb602418
 
 PKG_MAINTAINER:=Ted Hess <thess@kitschensync.net>
 PKG_LICENSE:=GPL-2.0-or-later OpenSSL
@@ -44,6 +44,7 @@ define Package/socat/config
 config SOCAT_SSL
         bool "SSL support"
         depends on PACKAGE_socat
+        select OPENSSL_WITH_DEPRECATED
         default n
         help
           Implements SSL support in socat (using libopenssl).

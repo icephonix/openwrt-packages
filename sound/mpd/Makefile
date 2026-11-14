@@ -6,35 +6,36 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=mpd
-PKG_VERSION:=0.22.6
-PKG_RELEASE:=1
+PKG_VERSION:=0.24.15
+PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
-PKG_SOURCE_URL:=https://www.musicpd.org/download/mpd/0.22/
-PKG_HASH:=2be149a4895c3cb613477f8cf1193593e3d8a1d38a75ffa7d32da8c8316a4d5e
+PKG_SOURCE_URL:=https://www.musicpd.org/download/mpd/0.24
+PKG_HASH:=524c70bce3fcd268016156bdc97abcf5be1904f0c6fd622688999123e3c4c457
 
-PKG_MAINTAINER:=
+PKG_MAINTAINER:=Alexandru Ardelean <ardeleanalex@gmail.com>
 PKG_LICENSE:=GPL-2.0-or-later
 PKG_LICENSE_FILES:=COPYING
 
 PKG_CONFIG_DEPENDS:= \
+	CONFIG_PACKAGE_audio-support \
 	CONFIG_BUILD_PATENTED \
 	CONFIG_IPV6 \
 
-PKG_INSTALL:=1
-PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS:=no-mips16
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/nls.mk
-include ../../devel/meson/meson.mk
+include $(INCLUDE_DIR)/meson.mk
 
 define Package/mpd/Default
   SECTION:=sound
   CATEGORY:=Sound
   TITLE:=Music Player Daemon
   URL:=https://www.musicpd.org/
-  DEPENDS:= +zlib +libcurl +libpthread +libmpdclient +boost $(ICONV_DEPENDS) \
-            +AUDIO_SUPPORT:alsa-lib +libexpat +libflac +libid3tag +libfaad2 +libopus
+  DEPENDS:=+zlib +libcurl +libpthread +libmpdclient $(ICONV_DEPENDS) +libfmt \
+            +PACKAGE_audio-support:alsa-lib +libexpat +libflac +libid3tag +libfaad2 +libopus
+  USERID:=mpd:mpd
 endef
 
 define Package/mpd/Default/description
@@ -47,10 +48,12 @@ endef
 define Package/mpd-full
 $(call Package/mpd/Default)
   TITLE+= (full)
-  DEPENDS+= +AUDIO_SUPPORT:pulseaudio-daemon +libvorbis +libmms +libupnp +libshout +yajl \
-            +BUILD_PATENTED:libffmpeg +!BUILD_PATENTED:libmad
+  DEPENDS+= +PACKAGE_audio-support:pulseaudio +libvorbis +libmms +libnpupnp +libshout \
+            +libffmpeg +lame-lib +libsoxr +!BUILD_PATENTED:libmad
   PROVIDES:=mpd
   VARIANT:=full
+  DEFAULT_VARIANT:=1
+  CONFLICTS:=mpd-mini
 endef
 
 define Package/mpd-full/description
@@ -100,6 +103,7 @@ define Package/mpd-avahi-service/conffiles
 endef
 
 MESON_ARGS += \
+	-Db_lto=true \
 	-Ddocumentation=disabled \
 	-Dhtml_manual=false \
 	-Dmanpages=false \
@@ -116,7 +120,6 @@ MESON_ARGS += \
 	-Dtcp=true \
 	-Dipv6=$(if $(CONFIG_IPV6),en,dis)abled \
 	-Dlocal_socket=true \
-	-Ddsd=false \
 	-Ddatabase=true \
 	-Dlibmpdclient=enabled \
 	-Dneighbor=false \
@@ -128,7 +131,7 @@ MESON_ARGS += \
 	-Dnfs=disabled \
 	-Dsmbclient=disabled \
 	-Dqobuz=disabled \
-	-Dtidal=disabled \
+	-Dnlohmann_json=disabled \
 	-Dbzip2=disabled \
 	-Diso9660=disabled \
 	-Dzzip=disabled \
@@ -140,10 +143,11 @@ MESON_ARGS += \
 	-Dflac=enabled \
 	-Dfluidsynth=disabled \
 	-Dgme=disabled \
-	-Dmpg123=disabled \
 	-Dmikmod=disabled \
 	-Dmodplug=disabled \
 	-Dmpcdec=disabled \
+	-Dmpg123=disabled \
+	-Dopenmpt=disabled \
 	-Dopus=enabled \
 	-Dsidplay=disabled \
 	-Dsndfile=disabled \
@@ -155,13 +159,14 @@ MESON_ARGS += \
 	-Dshine=disabled \
 	-Dwave_encoder=true \
 	-Dlibsamplerate=disabled \
-	-Dsoxr=disabled \
-	-Dalsa=$(if $(CONFIG_AUDIO_SUPPORT),en,dis)abled \
+	-Dalsa=$(if $(CONFIG_PACKAGE_audio-support),en,dis)abled \
 	-Dao=disabled \
 	-Dhttpd=true \
 	-Djack=disabled \
 	-Dopenal=disabled \
 	-Doss=disabled \
+	-Dpipewire=disabled \
+	-Dsnapcast=false \
 	-Dsndio=disabled \
 	-Dsolaris_output=disabled \
 	-Ddbus=disabled \
@@ -176,21 +181,23 @@ MESON_ARGS += \
 ifeq ($(BUILD_VARIANT),full)
 
   MESON_ARGS += \
-	-Dupnp=enabled \
+	-Dupnp=npupnp \
 	-Dmms=enabled \
-	-Dsoundcloud=enabled \
-	-Dffmpeg=$(if $(CONFIG_BUILD_PATENTED),en,dis)abled \
+	-Ddsd=true \
+	-Dffmpeg=enabled \
 	-Dmad=$(if $(CONFIG_BUILD_PATENTED),dis,en)abled \
 	-Dtremor=disabled \
 	-Dvorbis=enabled \
 	-Dfifo=true \
 	-Dpipe=true \
-	-Dpulse=$(if $(CONFIG_AUDIO_SUPPORT),en,dis)abled \
+	-Dpulse=$(if $(CONFIG_PACKAGE_audio-support),en,dis)abled \
 	-Drecorder=true \
 	-Dshout=enabled \
-	-Dyajl=enabled
+	-Dvorbisenc=enabled \
+	-Dlame=enabled \
+	-Dsoxr=enabled
 
-ifeq ($(CONFIG_AUDIO_SUPPORT),y)
+ifneq ($(CONFIG_PACKAGE_audio-support),)
 	TARGET_LDFLAGS += -Wl,-rpath-link=$(STAGING_DIR)/usr/lib/pulseaudio
 endif
 endif
@@ -201,7 +208,7 @@ ifeq ($(BUILD_VARIANT),mini)
   MESON_ARGS += \
 	-Dupnp=disabled \
 	-Dmms=disabled \
-	-Dsoundcloud=disabled \
+	-Ddsd=false \
 	-Dffmpeg=disabled \
 	-Dmad=enabled \
 	-Dtremor=enabled \
@@ -211,14 +218,14 @@ ifeq ($(BUILD_VARIANT),mini)
 	-Dpulse=disabled \
 	-Drecorder=false \
 	-Dshout=disabled \
-	-Dyajl=disabled
+	-Dsoxr=disabled
 endif
 
 define Package/mpd/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/mpd $(1)/usr/bin/
 	$(INSTALL_DIR) $(1)/etc
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/doc/mpdconf.example $(1)/etc/mpd.conf
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/doc/mpdconf.example $(1)/etc/mpd.conf
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/mpd.init $(1)/etc/init.d/mpd
 endef

@@ -8,15 +8,15 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libidn2
-PKG_VERSION:=2.3.0
+PKG_VERSION:=2.3.8
 PKG_RELEASE:=1
 
 PKG_SOURCE_URL:=@GNU/libidn
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_HASH:=e1cb1db3d2e249a6a3eb6f0946777c2e892d5c5dc7bd91c74394fc3a01cab8b5
+PKG_HASH:=f557911bf6171621e1f72ff35f5b1825bb35b52ed45325dcdee931e5d3c0787a
 
-PKG_MAINTAINER:=
-PKG_CPE_ID:=cpe:/a:libidn2_project:libidn2
+PKG_MAINTAINER:=Alexandru Ardelean <ardeleanalex@gmail.com>
+PKG_CPE_ID:=cpe:/a:gnu:libidn2
 
 PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1
@@ -27,7 +27,7 @@ include $(INCLUDE_DIR)/nls.mk
 define Package/idn2/Default
   SECTION:=net
   CATEGORY:=Network
-  URL:=http://www.gnu.org/software/libidn/
+  URL:=https://www.gnu.org/software/libidn/
 endef
 
 define Package/idn2/Default/description

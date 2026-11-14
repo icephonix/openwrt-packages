@@ -8,17 +8,17 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ngircd
-PKG_VERSION:=26
-PKG_RELEASE:=1
+PKG_VERSION:=28
+PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=https://ngircd.barton.de/pub/ngircd
-PKG_HASH:=56dcc6483058699fcdd8e54f5010eecee09824b93bad7ed5f18818e550d855c6
+PKG_HASH:=b48ba320a931d445ae335c47f88a9406a20f5c71c623bee5f7755d0522d435ee
 
-PKG_MAINTAINER:=
+PKG_MAINTAINER:=Alexandru Ardelean <ardeleanalex@gmail.com>
 PKG_LICENSE:=GPL-2.0
 PKG_LICENSE_FILES:=COPYING
-PKG_CPE_ID:=cpe:/a:ngircd:ngircd
+PKG_CPE_ID:=cpe:/a:barton:ngircd
 
 PKG_BUILD_PARALLEL:=1
 PKG_INSTALL:=1
@@ -61,6 +61,7 @@ define Package/ngircd-nossl
 $(call Package/ngircd/Default)
   TITLE+= (without OpenSSL support)
   VARIANT:=nossl
+  CONFLICTS:=ngircd
 endef
 
 Package/ngircd-nossl/conffiles = $(Package/ngircd/conffiles)

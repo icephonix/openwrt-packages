@@ -5,12 +5,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=umurmur
-PKG_VERSION:=0.2.19
-PKG_RELEASE:=1
+PKG_VERSION:=0.5.1
+PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://codeload.github.com/umurmur/umurmur/tar.gz/$(PKG_VERSION)?
-PKG_HASH:=338053160bc48e48850061cdfc19cf1b2bb66e56877c04cd6de7831b468646b6
+PKG_SOURCE_URL:=https://codeload.github.com/umurmur/umurmur/tar.gz/v$(PKG_VERSION)?
+PKG_HASH:=f41e81eef380d532fa20d33da5cf60c06964f566554dd32db4bd54793e636859
 
 PKG_MAINTAINER:=Martin Johansson <martin@fatbob.nu>
 PKG_LICENSE:=BSD-3-Clause
@@ -51,6 +51,7 @@ define Package/umurmur-mbedtls
   TITLE+= (with mbed TLS support)
   DEPENDS+= +libmbedtls
   VARIANT:=mbedtls
+  CONFLICTS:=umurmur-openssl
 endef
 
 define Package/umurmur-mbedtls/description
@@ -59,30 +60,30 @@ define Package/umurmur-mbedtls/description
 endef
 
 define Package/umurmur-openssl/conffiles
-/etc/umurmur.conf
+/etc/umurmur/umurmur.conf
 endef
 
 Package/umurmur-mbedtls/conffiles = $(Package/umurmur-openssl/conffiles)
 
 define Package/umurmur-openssl/install
-	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/umurmurd $(1)/usr/bin/
-	$(INSTALL_DIR) $(1)/etc
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/openwrt/files/umurmur.conf $(1)/etc/
+	$(INSTALL_DIR) $(1)/usr/sbin
+	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/umurmurd $(1)/usr/sbin/
+	$(INSTALL_DIR) $(1)/etc/umurmur/
+	$(INSTALL_CONF) $(PKG_BUILD_DIR)/umurmur.conf.example $(1)/etc/umurmur/umurmur.conf
 	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/openwrt/files/umurmur.init $(1)/etc/init.d/umurmur
-	$(INSTALL_DIR) $(1)/etc/umurmur
+	$(INSTALL_BIN) ./files/umurmur.init $(1)/etc/init.d/umurmur
 endef
 
 Package/umurmur-mbedtls/install = $(Package/umurmur-openssl/install)
 
 CMAKE_OPTIONS += \
 	-DLIBCONFIG_INCLUDE_DIR="$(STAGING_DIR)/usr/include" \
-	-DLIBCONFIG_LIBRARIES="$(STAGING_DIR)/usr/lib" \
+	-DLIBCONFIG_LIBRARIES="$(STAGING_DIR)/usr/lib/libconfig.so" \
 	-DLIBCONFIG_LIB_DIR="$(STAGING_DIR)/usr/lib" \
 	-DPROTOBUFC_INCLUDE_DIR="$(STAGING_DIR)/usr/include" \
-	-DPROTOBUFC_LIBRARIES="$(STAGING_DIR)/usr/lib" \
-	-DPROTOBUFC_LIB_DIR="$(STAGING_DIR)/usr/lib"
+	-DPROTOBUFC_LIBRARIES="$(STAGING_DIR)/usr/lib/libprotobuf-c.so" \
+	-DPROTOBUFC_LIB_DIR="$(STAGING_DIR)/usr/lib" \
+	-DCMAKE_INSTALL_BINDIR=sbin
 
 ifeq ($(BUILD_VARIANT),openssl)
 CMAKE_OPTIONS += -DSSL=openssl

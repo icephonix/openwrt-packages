@@ -5,15 +5,15 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=python-cachelib
-PKG_VERSION:=0.1
-PKG_RELEASE:=2
+PKG_VERSION:=0.13.0
+PKG_RELEASE:=1
 
 PYPI_NAME:=cachelib
-PKG_HASH:=8b889b509d372095357b8705966e1282d40835c4126d7c2b07fd414514d8ae8d
+PKG_HASH:=209d8996e3c57595bee274ff97116d1d73c4980b2fd9a34c7846cd07fd2e1a48
 
 PKG_MAINTAINER:=Stepan Henek <stepan.henek@nic.cz>
 PKG_LICENSE:=BSD-3-Clause
-PKG_LICENSE_FILES:=LICENSE
+PKG_LICENSE_FILES:=LICENSE.rst
 
 include ../pypi.mk
 include $(INCLUDE_DIR)/package.mk
@@ -23,9 +23,9 @@ define Package/python3-cachelib
   SECTION:=lang
   CATEGORY:=Languages
   SUBMENU:=Python
-  TITLE:=cachelib
-  URL:=https://github.com/pallets/cachelib
-  DEPENDS:=+python3-light
+  TITLE:=Collection of cache libraries
+  URL:=https://github.com/pallets-eco/cachelib/
+  DEPENDS:=+python3-light +python3-logging
 endef
 
 define Package/python3-cachelib/description

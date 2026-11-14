@@ -6,23 +6,20 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=grilo-plugins
-PKG_VERSION:=0.3.12
-PKG_RELEASE:=2
-
-PKG_MAINTAINER:=W. Michael Petullo <mike@flyn.org>
-PKG_LICENSE:=LGPLv2.1
-PKG_LICENSE_FILES:=COPYING
+PKG_VERSION:=0.3.18
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
-PKG_SOURCE_URL:=@GNOME/grilo-plugins/0.3/
-PKG_HASH:=c6b6df086a164d65c206d70139ce80591f8feca3545612e45b823fb4fe4b2577
+PKG_SOURCE_URL:=@GNOME/grilo-plugins/$(basename $(PKG_VERSION))
+PKG_HASH:=8e3ce74ee717c3c322d0cb0f8df26bb0914028a5d016e28055ffb49cc9a46c5e
 
-PKG_INSTALL:=1
-PKG_BUILD_DEPENDS:=meson/host
+PKG_MAINTAINER:=W. Michael Petullo <mike@flyn.org>
+PKG_LICENSE:=LGPL-2.1-or-later
+PKG_LICENSE_FILES:=COPYING
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/nls.mk
-include ../../devel/meson/meson.mk
+include $(INCLUDE_DIR)/meson.mk
 
 define Package/grilo-plugins/Default
   SECTION:=multimedia
@@ -38,7 +35,7 @@ define Package/grilo-plugins
   TITLE:=Plugins for the Grilo framework
 endef
 
-define Package/grilo/decription
+define Package/grilo/description
   Grilo is a framework that provides access to different sources of
   multimedia content, using a pluggable system. This package contains
   plugins to get information from a number of sources.
@@ -52,22 +49,19 @@ MESON_ARGS += \
 	-Denable-filesystem=no \
 	-Denable-flickr=no \
 	-Denable-freebox=no \
-	-Denable_gravatar=$(if $(CONFIG_PACKAGE_grilo-plugins-gravatar),yes,no) \
-	-Denable_jamendo=$(if $(CONFIG_PACKAGE_grilo-plugins-jamendo),yes,no) \
+	-Denable-gravatar=$(if $(CONFIG_PACKAGE_grilo-plugins-gravatar),yes,no) \
+	-Dhelp=no \
 	-Denable-local-metadata=no \
 	-Denable-lua-factory=no \
 	-Denable-magnatune=$(if $(CONFIG_PACKAGE_grilo-plugins-magnatune),yes,no) \
 	-Denable-metadata-store=$(if $(CONFIG_PACKAGE_grilo-plugins-metadata-store),yes,no) \
-	-Denable_opensubtitles=$(if $(CONFIG_PACKAGE_grilo-plugins-opensubtitles),yes,no) \
 	-Denable-optical-media=no \
 	-Denable-podcasts=no \
-	-Denable-raitv=$(if $(CONFIG_PACKAGE_grilo-plugins-raitv),yes,no) \
 	-Denable-shoutcast=$(if $(CONFIG_PACKAGE_grilo-plugins-shoutcast),yes,no) \
 	-Denable-thetvdb=no \
 	-Denable-tmdb=$(if $(CONFIG_PACKAGE_grilo-plugins-tmdb),yes,no) \
 	-Denable-tracker=no \
 	-Denable-tracker3=no \
-	-Denable-vimeo=no \
 	-Denable-youtube=no \
 	--wrap-mode=nodownload
 
@@ -101,10 +95,7 @@ $(eval $(call BuildPlugin,chromaprint,Chromaprint,chromaprint,+libgstreamer1,30)
 $(eval $(call BuildPlugin,dleyna,DLNA sharing,dleyna,,30))
 $(eval $(call BuildPlugin,dmap,DAAP and DPAP sharing,daap dpap,libdmapsharing,30))
 $(eval $(call BuildPlugin,gravatar,Gravatar provider,gravatar,,30))
-$(eval $(call BuildPlugin,jamendo,Jamendo sharing,jamendo,,30))
 $(eval $(call BuildPlugin,magnatune,Magnatune sharing,magnatune,,30))
 $(eval $(call BuildPlugin,metadata-store,Metadata Store,metadatastore,,30))
-$(eval $(call BuildPlugin,opensubtitles,Open subtitles provider,opensubtitles,,30))
-$(eval $(call BuildPlugin,raitv,Rai.tv sharing,raitv,,30))
 $(eval $(call BuildPlugin,shoutcast,SHOUTcast sharing,shoutcast,,30))
 $(eval $(call BuildPlugin,tmdb,TMDb,tmdb,+json-glib,30))

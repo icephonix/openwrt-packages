@@ -5,6 +5,7 @@ IP6="ip -6"
 SCRIPTNAME="$(basename "$0")"
 
 MWAN3_STATUS_DIR="/var/run/mwan3"
+MWAN3_STATUS_IPTABLES_LOG_DIR="${MWAN3_STATUS_DIR}/iptables_log"
 MWAN3TRACK_STATUS_DIR="/var/run/mwan3track"
 
 MWAN3_INTERFACE_MAX=""
@@ -20,6 +21,12 @@ MAX_SLEEP=$(((1<<31)-1))
 
 command -v ip6tables > /dev/null
 NO_IPV6=$?
+
+IPS="ipset"
+IPT4="iptables -t mangle -w"
+IPT6="ip6tables -t mangle -w"
+IPT4R="iptables-restore -T mangle -w -n"
+IPT6R="ip6tables-restore -T mangle -w -n"
 
 LOG()
 {
@@ -56,19 +63,37 @@ mwan3_get_src_ip()
 	if [ "$family" = "ipv4" ]; then
 		addr_cmd='network_get_ipaddr'
 		default_ip="0.0.0.0"
-		sed_str='s/ *inet \([^ \/]*\).*/\1/;T; pq'
+		sed_str='s/ *inet \([^ \/]*\).*/\1/;T;p;q'
 		IP="$IP4"
 	elif [ "$family" = "ipv6" ]; then
 		addr_cmd='network_get_ipaddr6'
 		default_ip="::"
-		sed_str='s/ *inet6 \([^ \/]*\).* scope.*/\1/;T; pq'
+		sed_str='s/ *inet6 \([^ \/]*\).* scope.*/\1/;T;p;q'
 		IP="$IP6"
 	fi
 
 	$addr_cmd _src_ip "$true_iface"
 	if [ -z "$_src_ip" ]; then
-		network_get_device device $true_iface
-		_src_ip=$($IP address ls dev $device 2>/dev/null | sed -ne "$sed_str")
+		if [ "$family" = "ipv6" ]; then
+			# on IPv6-PD interfaces (like PPPoE interfaces) we don't
+			# have a real address, just a prefix, that can be delegated
+			# to interfaces, because using :: (the fallback above) or
+			# the local address (fe80:... which will be returned from
+			# the sed_str expression defined above) will not work
+			# (reliably, if at all) try to find an address which we can
+			# use instead
+			network_get_prefix6 _src_ip "$true_iface"
+			if [ -n "$_src_ip" ]; then
+				# Let ip match the full prefix length and IPv6 spelling.
+				# A textual prefix can miss delegated subnets or select
+				# an address belonging to another upstream.
+				_src_ip=$($IP address ls to "$_src_ip" scope global | sed -ne "$sed_str")
+			fi
+		fi
+		if [ -z "$_src_ip" ]; then
+			network_get_device device $true_iface
+			_src_ip=$($IP address ls dev $device 2>/dev/null | sed -ne "$sed_str")
+		fi
 		if [ -n "$_src_ip" ]; then
 			LOG warn "no src $family address found from netifd for interface '$true_iface' dev '$device' guessing $_src_ip"
 		else
@@ -79,43 +104,62 @@ mwan3_get_src_ip()
 	export "$1=$_src_ip"
 }
 
+readfile() {
+	[ -f "$2" ] || return 1
+	# read returns 1 on EOF
+	read -d'\0' $1 <"$2" || :
+}
+
 mwan3_get_mwan3track_status()
 {
-	local track_ips pid
+	local interface=$2
+	local track_ips pid cmdline started
 	mwan3_list_track_ips()
 	{
 		track_ips="$1 $track_ips"
 	}
-	config_list_foreach "$1" track_ip mwan3_list_track_ips
+	config_list_foreach "$interface" track_ip mwan3_list_track_ips
 
-	if [ -n "$track_ips" ]; then
-		pid="$(pgrep -f "mwan3track $1$")"
-		if [ -n "$pid" ]; then
-			if [ "$(cat /proc/"$(pgrep -P $pid)"/cmdline)" = "sleep${MAX_SLEEP}" ]; then
-				tracking="paused"
-			else
-				tracking="active"
-			fi
-		else
-			tracking="down"
-		fi
-	else
-		tracking="not enabled"
+	if [ -z "$track_ips" ]; then
+		export -n "$1=disabled"
+		return
 	fi
-	echo "$tracking"
+	readfile pid $MWAN3TRACK_STATUS_DIR/$interface/PID 2>/dev/null
+	if [ -z "$pid" ]; then
+		export -n "$1=down"
+		return
+	fi
+	readfile cmdline /proc/$pid/cmdline 2>/dev/null
+	if [ $cmdline != "/bin/sh/usr/sbin/mwan3track${interface}" ]; then
+		export -n "$1=down"
+		return
+	fi
+	readfile started $MWAN3TRACK_STATUS_DIR/$interface/STARTED
+	case "$started" in
+		0)
+			export -n "$1=paused"
+			;;
+		1)
+			export -n "$1=active"
+			;;
+		*)
+			export -n "$1=down"
+			;;
+	esac
 }
 
 mwan3_init()
 {
-	local bitcnt mmdefault source_routing
+	local bitcnt mmdefault route_modifiers source_routing
 
 	config_load mwan3
 
 	[ -d $MWAN3_STATUS_DIR ] || mkdir -p $MWAN3_STATUS_DIR/iface_state
+	[ -d "$MWAN3_STATUS_IPTABLES_LOG_DIR" ] || mkdir -p "$MWAN3_STATUS_IPTABLES_LOG_DIR"
 
 	# mwan3's MARKing mask (at least 3 bits should be set)
 	if [ -e "${MWAN3_STATUS_DIR}/mmx_mask" ]; then
-		MMX_MASK=$(cat "${MWAN3_STATUS_DIR}/mmx_mask")
+		readfile MMX_MASK "${MWAN3_STATUS_DIR}/mmx_mask"
 		MWAN3_INTERFACE_MAX=$(uci_get_state mwan3 globals iface_max)
 	else
 		config_get MMX_MASK globals mmx_mask '0x3F00'
@@ -129,10 +173,17 @@ mwan3_init()
 		LOG debug "Max interface count is ${MWAN3_INTERFACE_MAX}"
 	fi
 
-	# remove "linkdown", expiry and source based routing modifiers from route lines
+	# remove unsupported flags, expiry and source based routing modifiers
 	config_get_bool source_routing globals source_routing 0
 	[ $source_routing -eq 1 ] && unset source_routing
-	MWAN3_ROUTE_LINE_EXP="s/linkdown //; s/expires [0-9]\+sec//; s/error [0-9]\+//; ${source_routing:+s/default\(.*\) from [^ ]*/default\1/;} p"
+	route_modifiers="s/offload//; s/ dead / /; s/ dead$/ /;"
+	route_modifiers="$route_modifiers s/ linkdown / /; s/ linkdown$/ /;"
+	route_modifiers="$route_modifiers s/expires [0-9]\+sec//;"
+	route_modifiers="$route_modifiers s/error [0-9]\+//;"
+	# With nexthop_compat_mode the kernel dumps nhid plus via/dev. Replaying both
+	# nhid and its expansion is rejected; retain ID-only routes unmodified.
+	route_modifiers="$route_modifiers / nhid [0-9]\+/ { / via \| dev / s/ nhid [0-9]\+//; };"
+	MWAN3_ROUTE_LINE_EXP="$route_modifiers ${source_routing:+s/default\(.*\) from [^ ]*/default\1/;} p"
 
 	# mark mask constants
 	bitcnt=$(mwan3_count_one_bits MMX_MASK)
@@ -182,16 +233,21 @@ mwan3_count_one_bits()
 }
 
 get_uptime() {
-	local uptime=$(cat /proc/uptime)
-	echo "${uptime%%.*}"
+	local _tmp
+	readfile _tmp /proc/uptime
+	if [ $# -eq 0 ]; then
+		echo "${_tmp%%.*}"
+	else
+		export -n "$1=${_tmp%%.*}"
+	fi
 }
 
 get_online_time() {
 	local time_n time_u iface
-	iface="$1"
-	time_u="$(cat "$MWAN3TRACK_STATUS_DIR/${iface}/ONLINE" 2>/dev/null)"
+	iface="$2"
+	readfile time_u "$MWAN3TRACK_STATUS_DIR/${iface}/ONLINE" 2>/dev/null
 	[ -z "${time_u}" ] || [ "${time_u}" = "0" ] || {
-		time_n="$(get_uptime)"
-		echo $((time_n-time_u))
+		get_uptime time_n
+		export -n "$1=$((time_n-time_u))"
 	}
 }

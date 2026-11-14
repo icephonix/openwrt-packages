@@ -8,21 +8,22 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=fontconfig
-PKG_VERSION:=2.13.93
+PKG_VERSION:=2.17.1
 PKG_RELEASE:=1
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
-PKG_SOURCE_URL:=https://fontconfig.org/release/
-PKG_HASH:=ea968631eadc5739bc7c8856cef5c77da812d1f67b763f5e51b57b8026c1a0a0
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
+PKG_SOURCE_URL:=https://gitlab.freedesktop.org/fontconfig/fontconfig/-/archive/$(PKG_VERSION)
+PKG_HASH:=bc1a90697eb8ec6c3eed118105ef9cbdfdd676e563905bf1cb571a705598300e
 
+PKG_MAINTAINER:=Alexandru Ardelean <ardeleanalex@gmail.com>
+PKG_LICENSE:=MIT-Modern-Variant
+PKG_LICENSE_FILES:=
 PKG_CPE_ID:=cpe:/a:fontconfig_project:fontconfig
 
-PKG_FIXUP:=libtool
-PKG_INSTALL:=1
-PKG_BUILD_PARALLEL:=1
 PKG_BUILD_DEPENDS:=gperf/host
 
 include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/meson.mk
 
 define Package/fontconfig
   SECTION:=xorg-util
@@ -30,19 +31,15 @@ define Package/fontconfig
   SUBMENU:=Font-Utils
   TITLE:=fontconfig
   DEPENDS:=+libpthread +libexpat +libfreetype
-  URL:=http://fontconfig.org/
+  URL:=https://www.freedesktop.org/wiki/Software/fontconfig/
 endef
 
-#TODO: better put cache on persistent storage for faster boot time?
-CONFIGURE_ARGS+= \
-	--with-cache-dir=/tmp/fontconfig/cache \
-	--with-arch=$(ARCH) \
-	--disable-iconv \
-	--disable-libxml2 \
-	--disable-docs
-
-CONFIGURE_VARS+= \
-	ac_cv_prog_HASDOCBOOK=no \
+MESON_ARGS += \
+	-Ddoc=disabled \
+	-Ddoc-txt=disabled \
+	-Dnls=disabled \
+	-Dtests=disabled \
+	-Dtools=enabled
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include

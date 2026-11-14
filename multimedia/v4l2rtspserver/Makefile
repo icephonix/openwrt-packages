@@ -7,17 +7,19 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=v4l2rtspserver
-PKG_VERSION:=0.2.3
-PKG_RELEASE:=$(AUTORELEASE)
+PKG_VERSION:=0.3.12
+PKG_RELEASE:=1
 
 #cannot use codeload as this uses submodules
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/mpromonet/v4l2rtspserver
 PKG_SOURCE_VERSION:=v$(PKG_VERSION)
-PKG_MIRROR_HASH:=f047fd24441a070b123252bf82c7d7e42bb0c3280b78ad2ddb01cf200acc3a32
+PKG_MIRROR_HASH:=445facb458ed6f59c319246e8244f8353ab64f053e08e56380edc1aed0806a7d
 
-LIVE555_VERSION:=2021.02.11
-LIVE555_HASH:=834ad3fc199f1a6b0c09646976deb71a3a7803dc7b498ce92e920f6cb7b717ba
+PKG_BUILD_FLAGS:=gc-sections lto
+
+LIVE555_VERSION:=2024.08.01
+LIVE555_HASH:=839ab7437d01e629f8094ea1ec8c7a7bb504c7deed9edfc9e17ac34f9a1a193f
 LIVE555_FILE:=live.$(LIVE555_VERSION).tar.gz
 
 PKG_MAINTAINER:=Roger Dammit <rogerdammit@gmail.com>
@@ -25,13 +27,13 @@ PKG_LICENSE:=Unlicense
 PKG_LICENSE_FILES:=LICENSE
 
 include $(INCLUDE_DIR)/package.mk
-include ../../devel/ninja/ninja-cmake.mk
+include $(INCLUDE_DIR)/cmake.mk
 
 define Package/v4l2rtspserver
 	SECTION:=multimedia
 	CATEGORY:=Multimedia
 	TITLE:=v4l2rtspserver
-	DEPENDS:=+libstdcpp
+	DEPENDS:=+libstdcpp +alsa-lib
 	URL:=https://github.com/mpromonet/v4l2rtspserver
 endef
 
@@ -49,20 +51,20 @@ define Download/live555
 	HASH:=$(LIVE555_HASH)
 endef
 
-TARGET_CFLAGS += -ffunction-sections -fdata-sections -flto
-TARGET_LDFLAGS += -Wl,--gc-sections,--as-needed
+TARGET_LDFLAGS += -Wl,--as-needed
 
 CMAKE_OPTIONS += \
-	-DALSA=OFF \
-	-DLIVE555CFLAGS=" -DSOCKLEN_T=socklen_t -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64 -DLOCALE_NOT_USED -DNO_SSTREAM=1 -DALLOW_RTSP_SERVER_PORT_REUSE=1 -DNO_OPENSSL"
+	-DSTATICSTDCPP=OFF \
+	-DWITH_SSL=OFF \
+	-DLIVE555CFLAGS="SOCKLEN_T=socklen_t;_LARGEFILE_SOURCE=1;_FILE_OFFSET_BITS=64;LOCALE_NOT_USED;NO_SSTREAM=1;ALLOW_RTSP_SERVER_PORT_REUSE=1;NO_STD_LIB=1;VERSION=\"$(PKG_VERSION)\""
+
 
 define Build/Prepare
-	$(Build/Prepare/Default)
-
 	# download live555
 	$(eval $(call Download,live555))
 	mkdir -p $(PKG_BUILD_DIR)/live
 	$(TAR) -xf $(DL_DIR)/$(LIVE555_FILE) --strip=1 -C $(PKG_BUILD_DIR)/live
+	$(Build/Prepare/Default)
 endef
 
 define Package/v4l2rtspserver/install

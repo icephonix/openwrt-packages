@@ -8,17 +8,20 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=iperf
-PKG_VERSION:=2.0.13
-PKG_RELEASE:=3
+PKG_VERSION:=2.2.1
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_HASH:=c88adec966096a81136dda91b4bd19c27aae06df4d45a7f547a8e50d723778ad
+PKG_HASH:=754ab0a7e28033dbea81308ef424bc7df4d6e2fe31b60cc536b61b51fefbd8fb
 PKG_SOURCE_URL:=@SF/iperf2
 
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
 PKG_LICENSE:=BSD-3-Clause
+PKG_LICENSE_FILES:=COPYING LICENSE
+PKG_CPE_ID:=cpe:/a:iperf_project:iperf
 
 PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=lto
 
 PKG_CONFIG_DEPENDS:=CONFIG_IPERF_ENABLE_MULTICAST
 
@@ -29,7 +32,7 @@ define Package/iperf
   CATEGORY:=Network
   DEPENDS:= +libstdcpp +libpthread
   TITLE:=Internet Protocol bandwidth measuring tool
-  URL:=http://sourceforge.net/projects/iperf2/
+  URL:=https://sourceforge.net/projects/iperf2/
 endef
 
 define Package/iperf/description
@@ -45,11 +48,11 @@ define Package/iperf/config
 endef
 
 CONFIGURE_ARGS += \
+	--enable-fastsampling \
 	$(call autoconf_bool,CONFIG_IPERF_ENABLE_MULTICAST,multicast) \
 	$(call autoconf_bool,CONFIG_IPV6,ipv6)
 
-TARGET_CFLAGS += -flto
-TARGET_CXXFLAGS += -fno-rtti -static-libstdc++ -flto -std=c++11
+TARGET_CXXFLAGS += -fno-rtti -static-libstdc++ -std=c++11
 TARGET_LDFLAGS += $(if $(CONFIG_USE_GLIBC),-lpthread -lm)
 
 define Package/iperf/install

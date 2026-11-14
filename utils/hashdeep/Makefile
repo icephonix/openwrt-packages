@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=hashdeep
 PKG_VERSION:=4.4
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/jessek/hashdeep/tar.gz/v$(PKG_VERSION)?
@@ -22,7 +22,7 @@ define Package/hashdeep
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=Recursively compute hashsums or piecewise hashings
-  URL:=http://md5deep.sourceforge.net/
+  URL:=https://github.com/jessek/hashdeep
   DEPENDS:=+libstdcpp
 endef
 

@@ -6,19 +6,19 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libzip
-PKG_VERSION:=1.7.3
-PKG_RELEASE:=1
+PKG_VERSION:=1.11.4
+PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=https://libzip.org/download/
-PKG_HASH:=a60473ffdb7b4260c08bfa19c2ccea0438edac11193c3afbbb1f17fbcf6c6132
+PKG_HASH:=8a247f57d1e3e6f6d11413b12a6f28a9d388de110adc0ec608d893180ed7097b
 
 PKG_MAINTAINER:=Michael Heimpold <mhei@heimpold.de>
 
 PKG_LICENSE:=BSD-3-Clause
 PKG_LICENSE_FILES:=LICENSE
+PKG_CPE_ID:=cpe:/a:libzip:libzip
 
-PKG_BUILD_PARALLEL:=1
 CMAKE_INSTALL:=1
 
 include $(INCLUDE_DIR)/package.mk
@@ -33,6 +33,7 @@ define Package/libzip/Default
   DEPENDS:=+zlib $(3)
   VARIANT:=$(1)
   PROVIDES:=libzip
+  CONFLICTS:=$(4)
 endef
 
 define Package/libzip-$(BUILD_VARIANT)/description
@@ -40,9 +41,9 @@ define Package/libzip-$(BUILD_VARIANT)/description
 endef
 
 Package/libzip-nossl=$(call Package/libzip/Default,nossl,w/o encryption support)
-Package/libzip-openssl=$(call Package/libzip/Default,openssl,OpenSSL,+PACKAGE_libzip-openssl:libopenssl)
-Package/libzip-gnutls=$(call Package/libzip/Default,gnutls,GnuTLS,+PACKAGE_libzip-gnutls:libgnutls)
-Package/libzip-mbedtls=$(call Package/libzip/Default,mbedtls,mbedTLS,+PACKAGE_libzip-mbedtls:libmbedtls)
+Package/libzip-openssl=$(call Package/libzip/Default,openssl,OpenSSL,+PACKAGE_libzip-openssl:libopenssl,libzip-nossl)
+Package/libzip-gnutls=$(call Package/libzip/Default,gnutls,GnuTLS,+PACKAGE_libzip-gnutls:libgnutls,libzip-mbedtls libzip-openssl libzip-nossl)
+Package/libzip-mbedtls=$(call Package/libzip/Default,mbedtls,mbedTLS,+PACKAGE_libzip-mbedtls:libmbedtls,libzip-openssl libzip-nossl)
 
 define Package/zipcmp
   TITLE:=zipcmp
@@ -102,6 +103,7 @@ endif
 
 CMAKE_OPTIONS += -DENABLE_BZIP2=OFF
 CMAKE_OPTIONS += -DENABLE_LZMA=OFF
+CMAKE_OPTIONS += -DENABLE_ZSTD=OFF
 CMAKE_OPTIONS += -DBUILD_REGRESS=OFF
 CMAKE_OPTIONS += -DBUILD_EXAMPLES=OFF
 CMAKE_OPTIONS += -DBUILD_DOC=OFF

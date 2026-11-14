@@ -7,11 +7,14 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=pillow
-PKG_VERSION:=8.1.2
+PKG_VERSION:=12.3.0
 PKG_RELEASE:=1
 
 PYPI_NAME:=Pillow
-PKG_HASH:=b07c660e014852d98a00a91adfbe25033898a9d90a8f39beb2437d22a203fc44
+PYPI_SOURCE_NAME:=pillow
+PKG_HASH:=3b8182a766685eaa002637e28b4ec8d6b18819a0c71f579bf0dbaa5830297cce
+
+PKG_BUILD_DEPENDS:=python-setuptools/host
 
 PKG_MAINTAINER:=Alexandru Ardelean <ardeleanalex@gmail.com>
 PKG_LICENSE:=HPND
@@ -28,24 +31,24 @@ define Package/python3-pillow
   CATEGORY:=Languages
   TITLE:=The friendly PIL fork
   URL:=https://python-pillow.org/
-  DEPENDS:=+libfreetype +libjpeg +libtiff +zlib +python3
+  DEPENDS:=+libfreetype +libjpeg +libtiff +zlib \
+	   +libwebp +python3
 endef
 
 define Package/python3-pillow/description
   The friendly PIL fork
 endef
 
-PYTHON3_PKG_SETUP_GLOBAL_ARGS += build_ext \
-	--enable-zlib \
-	--enable-jpeg \
-	--enable-tiff \
-	--enable-freetype \
-	--disable-lcms \
-	--disable-webp \
-	--disable-webpmux \
-	--disable-jpeg2000 \
-	--disable-imagequant \
-	--disable-platform-guessing
+PYTHON3_PKG_BUILD_CONFIG_SETTINGS += \
+	zlib=enable \
+	jpeg=enable \
+	webp=enable \
+	tiff=enable \
+	freetype=enable \
+	lcms=disable \
+	jpeg2000=disable \
+	imagequant=disable \
+	platform-guessing=disable
 
 $(eval $(call Py3Package,python3-pillow))
 $(eval $(call BuildPackage,python3-pillow))

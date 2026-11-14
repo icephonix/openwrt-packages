@@ -8,17 +8,17 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=tinyproxy
-PKG_VERSION:=1.10.0
-PKG_RELEASE:=2
+PKG_VERSION:=1.11.3
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=https://github.com/tinyproxy/tinyproxy/releases/download/$(PKG_VERSION)
-PKG_HASH:=59be87689c415ba0d9c9bc6babbdd3df3b372d60b21e526b118d722dbc995682
+PKG_HASH:=f05644fdf1211ba13754a354bebed909b5b39371b12cce8563c46929a75bedf6
 
 PKG_MAINTAINER:=Jo-Philipp Wich <jo@mein.io>
 PKG_LICENSE:=GPL-2.0-or-later
 PKG_LICENSE_FILES:=COPYING
-PKG_CPE_ID:=cpe:/a:banu:tinyproxy
+PKG_CPE_ID:=cpe:/a:tinyproxy_project:tinyproxy
 
 PKG_INSTALL:=1
 PKG_BUILD_PARALLEL:=1

@@ -6,16 +6,18 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=hwdata
-PKG_VERSION:=0.345
+PKG_VERSION:=0.412
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/vcrhonek/hwdata/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=fafcc97421ba766e08a2714ccc3eebb0daabc99e67d53c2d682721dd01ccf7a7
+PKG_HASH:=f0c64cd7e31d70a5fb3a52e53ab50a61e74c0421a6381eaa45114eec3bde5fe7
 
-PKG_MAINTAINER:=
-PKG_LICENSE:=GPL-2.0-or-later  XFree86-1.0
-PKG_LICENSE_FILES:=LICENSE
+PKG_MAINTAINER:=Alexandru Ardelean <ardeleanalex@gmail.com>
+PKG_LICENSE:=GPL-2.0-or-later
+PKG_LICENSE_FILES:=COPYING LICENSE
+
+PKG_INSTALL:=1
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -33,15 +35,35 @@ define Package/usbids
   URL:=https://github.com/vcrhonek/hwdata
 endef
 
+define Package/pnpids
+  SECTION:=utils
+  CATEGORY:=Utilities
+  TITLE:=PnP ID list
+  URL:=https://github.com/vcrhonek/hwdata
+endef
+
+define Build/InstallDev
+	$(INSTALL_DIR) $(1)/usr/share/hwdata
+	$(CP) $(PKG_INSTALL_DIR)/usr/share/hwdata/* $(1)/usr/share/hwdata
+	$(INSTALL_DIR) $(1)/usr/lib/pkgconfig
+	$(CP) $(PKG_INSTALL_DIR)/usr/*/pkgconfig/hwdata.pc $(1)/usr/lib/pkgconfig
+endef
+
 define Package/pciids/install
 	$(INSTALL_DIR) $(1)/usr/share/hwdata
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/pci.ids $(1)/usr/share/hwdata
+	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/share/hwdata/pci.ids $(1)/usr/share/hwdata
+endef
+
+define Package/pnpids/install
+	$(INSTALL_DIR) $(1)/usr/share/hwdata
+	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/share/hwdata/pnp.ids $(1)/usr/share/hwdata
 endef
 
 define Package/usbids/install
 	$(INSTALL_DIR) $(1)/usr/share/hwdata
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/usb.ids $(1)/usr/share/hwdata
+	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/share/hwdata/usb.ids $(1)/usr/share/hwdata
 endef
 
 $(eval $(call BuildPackage,pciids))
+$(eval $(call BuildPackage,pnpids))
 $(eval $(call BuildPackage,usbids))

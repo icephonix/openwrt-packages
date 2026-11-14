@@ -5,15 +5,18 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=python-paho-mqtt
-PKG_VERSION:=1.5.1
+PKG_VERSION:=2.1.0
 PKG_RELEASE:=1
 
-PKG_MAINTAINER:=Josef Schlehofer <josef.schlehofer@nic.cz>, Alexandru Ardelean <ardeleanalex@gmail.com>
-PKG_LICENSE:=EPL-1.0 Eclipse Distribution License v1.0
-PKG_LICENSE_FILES:=epl-v10 edl-v10
+PKG_MAINTAINER:=Josef Schlehofer <pepe.schlehofer@gmail.com>, Alexandru Ardelean <ardeleanalex@gmail.com>
+PKG_LICENSE:=EPL-2.0 Eclipse Distribution License v1.0
+PKG_LICENSE_FILES:=epl-v20 edl-v10 LICENSE.txt
 
 PYPI_NAME:=paho-mqtt
-PKG_HASH:=9feb068e822be7b3a116324e01fb6028eb1d66412bf98595ae72698965cb1cae
+PYPI_SOURCE_NAME:=paho_mqtt
+PKG_HASH:=12d6e7511d4137555a3f6ea167ae846af2c7357b10bc6fa4f7c3968fc1723834
+
+PKG_BUILD_DEPENDS:=python-hatchling/host
 
 include ../pypi.mk
 include $(INCLUDE_DIR)/package.mk
@@ -24,8 +27,8 @@ define Package/python3-paho-mqtt
   CATEGORY:=Languages
   SUBMENU:=Python
   TITLE:=MQTT version 5.0/3.1.1 client class
-  URL:=http://eclipse.org/paho
-  DEPENDS:=+python3-light
+  URL:=https://eclipse.dev/paho/
+  DEPENDS:=+python3-light +python3-uuid +python3-logging +python3-urllib
 endef
 
 define Package/python3-paho-mqtt/description
